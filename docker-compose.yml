@@ -1,9 +1,9 @@
-# docker-compose.yml
-version: '3.8'
-
 services:
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: creditrisk_api
     ports:
       - "8000:8000"
     volumes:
@@ -11,16 +11,29 @@ services:
       - ./models:/app/models
     environment:
       - ENVIRONMENT=production
-      - ML_MODEL_ENABLED=true
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    
-  dashboard:
-    build: 
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    networks:
+      - credit_network
+
+  frontend:
+    build:
       context: .
-      dockerfile: Dockerfile.dashboard
+      dockerfile: Dockerfile.frontend
+    container_name: creditrisk_frontend
     ports:
       - "8501:8501"
-    depends_on:
-      - api
+    volumes:
+      - ./data:/app/data
     environment:
       - API_URL=http://api:8000
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - credit_network
+
+networks:
+  credit_network:
+    driver: bridge

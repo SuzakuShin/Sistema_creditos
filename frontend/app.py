@@ -1,16 +1,16 @@
-# frontend/app.py
+import os
+import time
+import requests
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
-import requests
 from datetime import datetime
-import time
 
 # ============================================
 # CONFIGURACIÓN DE LA PÁGINA
 # ============================================
 st.set_page_config(
-    page_title="CreditRisk Analyzer Pro",
+    page_title="Análisis Crediticio",
     page_icon="🏦",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -95,10 +95,9 @@ st.markdown("""
 # ============================================
 # API CONFIGURATION
 # ============================================
-API_BASE_URL = "http://localhost:8000"
+API_BASE_URL = os.getenv("API_URL", "http://localhost:8000")
 
 def get_api_health():
-    """Verificar salud de la API"""
     try:
         response = requests.get(f"{API_BASE_URL}/health", timeout=5)
         return response.json()
@@ -106,7 +105,6 @@ def get_api_health():
         return None
 
 def get_statistics():
-    """Obtener estadísticas generales"""
     try:
         response = requests.get(f"{API_BASE_URL}/estadisticas", timeout=5)
         return response.json()
@@ -114,7 +112,6 @@ def get_statistics():
         return None
 
 def get_cliente(cliente_id):
-    """Buscar cliente por ID"""
     try:
         response = requests.get(f"{API_BASE_URL}/cliente/{cliente_id}", timeout=5)
         if response.status_code == 200:
@@ -124,7 +121,6 @@ def get_cliente(cliente_id):
         return None
 
 def evaluate_cliente(data):
-    """Evaluar cliente"""
     try:
         response = requests.post(f"{API_BASE_URL}/evaluar", json=data, timeout=5)
         if response.status_code == 200:
@@ -138,7 +134,7 @@ def evaluate_cliente(data):
 # ============================================
 with st.sidebar:
     st.markdown("# 🏦")
-    st.markdown("## CreditRisk Analyzer")
+    st.markdown("## Análisis Crediticio")
     st.markdown("*Sistema Experto de Análisis Crediticio*")
     
     st.divider()
@@ -153,8 +149,6 @@ with st.sidebar:
         st.error("🔴 API Desconectada")
     
     st.divider()
-    
-    # Navegación
     st.markdown("### 📋 Navegación")
     page = st.radio(
         "Seleccionar página",
@@ -165,22 +159,19 @@ with st.sidebar:
     st.divider()
     
     st.markdown(f"🕐 {datetime.now().strftime('%H:%M:%S')}")
-    st.markdown("🤖 Motor: Agente Experto")
 
 # ============================================
 # PÁGINA: BUSCAR CLIENTE
 # ============================================
 if page == "🔍 Buscar Cliente":
     
-    # Header
     col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
         st.markdown("# 🔍 Búsqueda de Clientes")
-        st.markdown("*Ingrese el ID del cliente para ver su análisis crediticio*")
+        st.markdown("*Ingrese el ID del cliente*")
     
     st.divider()
     
-    # Búsqueda
     col1, col2 = st.columns([4, 1])
     
     with col1:
@@ -192,99 +183,177 @@ if page == "🔍 Buscar Cliente":
         )
     
     with col2:
-        buscar_btn = st.button("🔍 Buscar", key="buscar_btn")
+        buscar_btn = st.button("🔍 Buscar", key="buscar_btn", use_container_width=True)
     
-    # Resultados de búsqueda
     if buscar_btn and cliente_id:
         with st.spinner("🔍 Buscando cliente..."):
             time.sleep(0.3)
-            result = get_cliente(cliente_id)
+            
+            # Usar el nuevo endpoint de perfil completo
+            try:
+                result = requests.get(f"{API_BASE_URL}/perfil/{cliente_id}", timeout=5).json()
+            except:
+                result = None
             
             if result:
                 decision = result.get('decision_agente', {})
-                datos = result.get('datos_base', {})
+                datos_credito = result.get('datos_crediticios', {})
+                datos_personales = result.get('datos_personales', {})
                 
                 riesgo = decision.get('riesgo', '')
                 estado = decision.get('estado', '')
                 
+                # ============================================
+                # PERFIL PERSONAL DEL CLIENTE
+                # ============================================
+                if datos_personales:
+                    st.markdown("## 👤 Perfil del Cliente")
+                    col1, col2 = st.columns([1, 3])
+                    
+                    with col1:
+                        foto_path = datos_personales.get('file', '')
+                        if foto_path:
+                            full_path = os.path.join('data', foto_path.replace('/', os.sep))
+                            if os.path.exists(full_path):
+                                st.image(full_path, width=180, caption=f"{datos_personales.get('firstname', '')} {datos_personales.get('lastname', '')}")
+                            else:
+                                st.markdown(f"""
+                                <div style="
+                                    width: 180px;
+                                    height: 180px;
+                                    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+                                    border-radius: 12px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-size: 64px;
+                                ">
+                                    👤
+                                </div>
+                                """, unsafe_allow_html=True)
+                    
+                    with col2:
+                        def safe_get(key, default='N/A'):
+                            val = datos_personales.get(key, '')
+                            if val is None or val == '' or val == 'nan':
+                                return default
+                            return str(val)
+                        age_val = datos_personales.get('age', '')
+                        if age_val and str(age_val).replace('.', '').replace('-', '').strip():
+                            try:
+                                age_display = f"{int(float(age_val))} años"
+                            except:
+                                age_display = 'N/A'
+                        else:
+                            age_display = 'N/A'
+                        
+                        st.markdown(f"""
+                        <div style="
+                            background: rgba(30, 41, 59, 0.8);
+                            border: 1px solid #334155;
+                            border-radius: 12px;
+                            padding: 20px;
+                        ">
+                            <h3 style="margin: 0 0 15px 0; color: #e2e8f0;">
+                                {safe_get('firstname')} {safe_get('lastname')}
+                            </h3>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                                <div>
+                                    <span style="color: #94a3b8;">📧 Email:</span><br>
+                                    <span style="color: #e2e8f0;">{safe_get('email')}</span>
+                                </div>
+                                <div>
+                                    <span style="color: #94a3b8;">📱 Teléfono:</span><br>
+                                    <span style="color: #e2e8f0;">{safe_get('phone')}</span>
+                                </div>
+                                <div>
+                                    <span style="color: #94a3b8;">👤 Género:</span><br>
+                                    <span style="color: #e2e8f0;">{safe_get('gender')}</span>
+                                </div>
+                                <div>
+                                    <span style="color: #94a3b8;">🎂 Edad:</span><br>
+                                    <span style="color: #e2e8f0;">{age_display}</span>
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    if datos_personales.get('street'):
+                        st.markdown(f"""
+                        <div style="
+                            background: rgba(30, 41, 59, 0.6);
+                            border: 1px solid #334155;
+                            border-radius: 12px;
+                            padding: 15px;
+                            margin: 10px 0;
+                        ">
+                            <span style="color: #94a3b8;">📍 Dirección:</span>
+                            <span style="color: #e2e8f0;">
+                                {datos_personales.get('street', '')} {datos_personales.get('streetnumber', '')}
+                                {', ' + datos_personales.get('address_unit', '') if datos_personales.get('address_unit') else ''}<br>
+                                CP: {datos_personales.get('postalcode', '')}, {datos_personales.get('city', '')}
+                            </span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    st.divider()                
+                # ============================================
+                # ANÁLISIS CREDITICIO
+                # ============================================
+                st.markdown("## 📊 Análisis Crediticio")
+                
                 # Determinar colores según riesgo
                 if 'Bajo' in riesgo:
-                    risk_color = "green"
+                    risk_color = "#10b981"
                     risk_emoji = "🟢"
                 elif 'Medio' in riesgo:
-                    risk_color = "orange"
+                    risk_color = "#f59e0b"
                     risk_emoji = "🟡"
                 else:
-                    risk_color = "red"
+                    risk_color = "#ef4444"
                     risk_emoji = "🔴"
-                
-                st.divider()
-                
-                # Header del resultado
                 col1, col2 = st.columns([3, 1])
                 with col1:
-                    st.markdown(f"### Cliente: {cliente_id}")
+                    st.markdown(f"### Cliente: {datos_personales.get('firstname', '')} {datos_personales.get('lastname', '')}")
                 with col2:
-                    st.markdown(f"### {risk_emoji} {riesgo}")
-                
-                # Estado y decisión
+                    st.markdown(f"### {risk_emoji} {riesgo}")                
                 if estado == "Aprobado":
                     st.success(f"✅ {estado}")
                 elif estado == "Aprobado condicional":
                     st.warning(f"⚠️ {estado}")
                 else:
                     st.error(f"❌ {estado}")
-                
-                # Métricas principales
-                st.markdown("#### 📊 Datos del Cliente")
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
-                    st.metric(
-                        "Ingreso Anual",
-                        f"${datos.get('ingreso_anual', 0):,.2f}"
-                    )
+                    st.metric("Ingreso Anual", f"${datos_credito.get('ingreso_anual', 0):,.2f}")
                 
                 with col2:
-                    st.metric(
-                        "Deuda Pendiente",
-                        f"${datos.get('deuda_pendiente', 0):,.2f}"
-                    )
+                    st.metric("Deuda Pendiente", f"${datos_credito.get('deuda_pendiente', 0):,.2f}")
                 
                 with col3:
-                    st.metric(
-                        "Credit Score",
-                        datos.get('score', 'N/A')
-                    )
+                    st.metric("Credit Score", datos_credito.get('credit_score', 'N/A'))
                 
-                # Decisión del agente
+                with col4:
+                    st.metric("Pagos Atrasados", datos_credito.get('pagos_atrasados', 0))
+                
                 st.markdown("#### 🎯 Decisión del Agente")
+                
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    st.metric(
-                        "Estado",
-                        decision.get('estado', 'N/A')
-                    )
+                    st.metric("Estado", decision.get('estado', 'N/A'))
                 
                 with col2:
-                    st.metric(
-                        "Tasa de Interés",
-                        f"{decision.get('tasa_interes_anual_pct', 0)}%"
-                    )
+                    st.metric("Tasa de Interés", f"{decision.get('tasa_interes_anual_pct', 0)}%")
                 
                 with col3:
-                    st.metric(
-                        "Monto Máximo",
-                        f"${decision.get('monto_maximo_prestable', 0):,.2f}"
-                    )
+                    st.metric("Monto Máximo", f"${decision.get('monto_maximo_prestable', 0):,.2f}")
                 
-                                # Indicador DTI
+                # Indicador DTI
                 st.markdown("#### 📈 Indicadores de Riesgo")
                 
                 dti_value = decision.get('dti', 0) * 100
                 
-                # Determinar colores según DTI
                 if dti_value <= 10:
                     bar_color = "#10b981"
                     risk_level = "Bajo"
@@ -298,9 +367,7 @@ if page == "🔍 Buscar Cliente":
                     risk_level = "Alto"
                     risk_icon = "🔴"
                 
-                # Barra de progreso personalizada con HTML/CSS (SIN COMENTARIOS HTML)
                 bar_width = min(dti_value, 100)
-                
                 st.markdown(f"""
                 <div style="
                     background: rgba(30, 41, 59, 0.8);
@@ -316,28 +383,11 @@ if page == "🔍 Buscar Cliente":
                         margin-bottom: 15px;
                     ">
                         <div>
-                            <span style="
-                                color: #e2e8f0;
-                                font-size: 18px;
-                                font-weight: bold;
-                            ">DTI (Deuda/Ingreso)</span>
-                            <span style="
-                                color: #94a3b8;
-                                font-size: 14px;
-                                margin-left: 10px;
-                            ">Debt-to-Income Ratio</span>
+                            <span style="color: #e2e8f0; font-size: 18px; font-weight: bold;">DTI (Deuda/Ingreso)</span>
                         </div>
                         <div style="text-align: right;">
-                            <span style="
-                                color: {bar_color};
-                                font-size: 28px;
-                                font-weight: bold;
-                            ">{dti_value:.2f}%</span>
-                            <span style="
-                                color: {bar_color};
-                                font-size: 18px;
-                                margin-left: 8px;
-                            ">{risk_icon} {risk_level}</span>
+                            <span style="color: {bar_color}; font-size: 28px; font-weight: bold;">{dti_value:.2f}%</span>
+                            <span style="color: {bar_color}; font-size: 18px; margin-left: 8px;">{risk_icon} {risk_level}</span>
                         </div>
                     </div>                    
                     <div style="
@@ -347,15 +397,12 @@ if page == "🔍 Buscar Cliente":
                         position: relative;
                         overflow: hidden;
                         border: 1px solid #334155;
-                        box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
                     ">
                         <div style="
                             background: linear-gradient(90deg, {bar_color}, {bar_color}dd);
                             width: {bar_width}%;
                             height: 100%;
                             border-radius: 12px;
-                            transition: width 0.5s ease;
-                            position: relative;
                             box-shadow: 0 0 10px {bar_color}66;
                         ">
                             <div style="
@@ -367,7 +414,7 @@ if page == "🔍 Buscar Cliente":
                                 background: linear-gradient(180deg, rgba(255,255,255,0.2), transparent);
                                 border-radius: 12px 12px 0 0;
                             "></div>
-                        </div>                        
+                        </div>
                         <div style="
                             position: absolute;
                             top: 50%;
@@ -379,12 +426,7 @@ if page == "🔍 Buscar Cliente":
                             text-shadow: 0 1px 2px rgba(0,0,0,0.5);
                         ">{dti_value:.1f}%</div>
                     </div>                    
-                    <div style="
-                        display: flex;
-                        justify-content: space-between;
-                        margin-top: 12px;
-                        font-size: 12px;
-                    ">
+                    <div style="display: flex; justify-content: space-between; margin-top: 12px; font-size: 12px;">
                         <div style="text-align: center; flex: 1;">
                             <div style="color: #10b981; font-weight: bold;">0%</div>
                             <div style="color: #64748b;">Bajo Riesgo</div>
@@ -401,34 +443,16 @@ if page == "🔍 Buscar Cliente":
                             <div style="color: #dc2626; font-weight: bold;">50%+</div>
                             <div style="color: #64748b;">Crítico</div>
                         </div>
-                    </div>                    
-                    <div style="
-                        display: flex;
-                        margin-top: 8px;
-                        border-radius: 6px;
-                        overflow: hidden;
-                        height: 4px;
-                    ">
-                        <div style="flex: 1; background: #10b981;"></div>
-                        <div style="flex: 1; background: #f59e0b;"></div>
-                        <div style="flex: 1; background: #ef4444;"></div>
-                        <div style="flex: 1; background: #dc2626;"></div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-                
-                # Gráfico de gauge (velocímetro)
                 fig = go.Figure(go.Indicator(
                     mode="gauge+number",
                     value=dti_value,
                     title={'text': "Índice DTI (%)", 'font': {'color': '#e2e8f0', 'size': 16}},
                     number={'font': {'color': bar_color, 'size': 40}},
                     gauge={
-                        'axis': {
-                            'range': [0, 100],
-                            'tickcolor': '#94a3b8',
-                            'tickfont': {'color': '#94a3b8'}
-                        },
+                        'axis': {'range': [0, 100], 'tickcolor': '#94a3b8'},
                         'bar': {'color': bar_color, 'thickness': 0.2},
                         'bgcolor': 'rgba(15, 23, 42, 0.8)',
                         'borderwidth': 1,
@@ -455,20 +479,22 @@ if page == "🔍 Buscar Cliente":
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
+                
+            else:
+                st.error("❌ Cliente no encontrado")
+                st.markdown(f"No se encontró el cliente con ID: **{cliente_id}**")
+                st.info("Verifique que el ID sea correcto y que ambos datasets estén cargados.")
 # ============================================
 # PÁGINA: EVALUAR SOLICITANTE
 # ============================================
 elif page == "📝 Evaluar Solicitante":
     
-    # Header
     col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
         st.markdown("# 📝 Evaluar Solicitante")
         st.markdown("*Complete el formulario para evaluar el perfil crediticio*")
     
     st.divider()
-    
-    # Formulario en un contenedor
     with st.container():
         col1, col2 = st.columns(2)
         
@@ -511,18 +537,14 @@ elif page == "📝 Evaluar Solicitante":
             )
     
     st.divider()
-    
-    # Botón de evaluación centrado
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         evaluar_btn = st.button("🚀 Evaluar Solicitante", key="btn_evaluar", use_container_width=True)
     
-    # Procesar evaluación
     if evaluar_btn:
         with st.spinner("🔄 Analizando perfil crediticio..."):
             time.sleep(0.5)
             
-            # Preparar datos
             data = {
                 "Annual_Income": annual_income,
                 "Outstanding_Debt": outstanding_debt,
@@ -530,7 +552,6 @@ elif page == "📝 Evaluar Solicitante":
                 "Pagos_Atrasados": int(pagos_atrasados)
             }
             
-            # Llamar a la API
             result = evaluate_cliente(data)
             
             if result:
@@ -539,7 +560,6 @@ elif page == "📝 Evaluar Solicitante":
                 
                 st.divider()
                 
-                # Mostrar resultado según el riesgo
                 if 'Bajo' in riesgo:
                     st.success(f"### 🟢 {estado} - {riesgo}")
                     risk_color = "#10b981"
@@ -549,8 +569,6 @@ elif page == "📝 Evaluar Solicitante":
                 else:
                     st.error(f"### 🔴 {estado} - {riesgo}")
                     risk_color = "#ef4444"
-                
-                # Métricas en cards
                 col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
@@ -576,8 +594,6 @@ elif page == "📝 Evaluar Solicitante":
                         label="Riesgo",
                         value=riesgo.replace('Riesgo ', '')
                     )
-                
-                # Gráfico de velocímetro
                 st.divider()
                 st.markdown("### 📈 Indicador de Riesgo DTI")
                 
@@ -622,7 +638,6 @@ elif page == "📝 Evaluar Solicitante":
                 
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # Resumen de la decisión
                 st.divider()
                 st.markdown("### 📋 Resumen de la Decisión")
                 
@@ -649,8 +664,6 @@ elif page == "📝 Evaluar Solicitante":
                 - El endpoint `/evaluar` esté disponible
                 - Los datos ingresados sean válidos
                 """)
-    
-    # Si no se ha evaluado, mostrar mensaje de instrucción
     if 'evaluar_btn' not in locals() or not evaluar_btn:
         st.info("👆 Complete el formulario y presione **Evaluar Solicitante** para ver el resultado")                
 
@@ -666,7 +679,6 @@ elif page == "📊 Dashboard":
     stats = get_statistics()
     
     if stats:
-        # KPIs principales
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -683,7 +695,6 @@ elif page == "📊 Dashboard":
         
         st.divider()
         
-        # Gráficos
         col1, col2 = st.columns(2)
         
         with col1:
@@ -711,7 +722,6 @@ elif page == "📊 Dashboard":
         with col2:
             st.markdown("### 📈 Indicadores del Sistema")
             
-            # Barras de progreso
             st.markdown("**Calidad de Cartera**")
             st.progress(75, text="Buena (75%)")
             
@@ -779,6 +789,6 @@ elif page == "ℹ️ Acerca de":
 st.divider()
 st.markdown("""
 <div style="text-align: center; color: #64748b; font-size: 12px;">
-    🏦 CreditRisk Analyzer Pro v1.0 | © 2024
+    🏦 CreditRisk Analyzer v1.0 | © 2026
 </div>
 """, unsafe_allow_html=True)

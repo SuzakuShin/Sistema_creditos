@@ -9,7 +9,7 @@ class ClienteEval(BaseModel):
     
     @validator('Credit_Score')
     def validar_credit_score(cls, v):
-        # Aceptar valores de texto conocidos
+       
         if v in ['Good', 'Standard', 'Poor']:
             return v
         
@@ -27,7 +27,7 @@ class ClienteEval(BaseModel):
     def validar_ingreso(cls, v):
         if v <= 0:
             raise ValueError('El ingreso anual debe ser mayor que 0')
-        if v > 10000000:  # 10 millones como límite razonable
+        if v > 10000000:  
             raise ValueError('El ingreso anual parece demasiado alto')
         return v
     

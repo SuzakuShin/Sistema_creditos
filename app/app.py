@@ -1,4 +1,3 @@
-# Nuevo archivo: dashboard/app.py
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -8,18 +7,17 @@ import os
 
 st.set_page_config(page_title="Dashboard de Crédito", layout="wide")
 
-# Título
+
 st.title("🏦 Dashboard de Análisis de Crédito")
 st.markdown("---")
 
-# Cargar datos del endpoint de estadísticas
 @st.cache_data
 def load_statistics():
     try:
         response = requests.get("http://localhost:8000/estadisticas")
         return response.json()
     except:
-        # Datos de ejemplo si la API no está disponible
+        
         return generate_sample_data()
 
 def generate_sample_data():
@@ -33,7 +31,6 @@ def generate_sample_data():
     data['DTI'] = data['Outstanding_Debt'] / data['Annual_Income']
     return data
 
-# Layout de columnas
 col1, col2 = st.columns(2)
 
 with col1:
@@ -65,7 +62,7 @@ with col2:
 st.markdown("---")
 st.subheader("📝 Evaluar Cliente")
 
-# Formulario de evaluación
+
 with st.form("credit_evaluation"):
     col1, col2, col3 = st.columns(3)
     
@@ -93,7 +90,7 @@ with st.form("credit_evaluation"):
             if response.status_code == 200:
                 result = response.json()
                 
-                # Mostrar resultados con formato
+               
                 st.success("✅ Evaluación completada")
                 
                 col1, col2, col3 = st.columns(3)

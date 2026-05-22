@@ -4,10 +4,6 @@ ml_model = CreditRiskModel()
 
 def evaluar_cliente(ingreso_anual: float, deuda_pendiente: float, 
                    credit_score: str, pagos_atrasados: int) -> dict:
-    """
-    Evalúa a un cliente según su ingreso, deuda, score crediticio y pagos atrasados.
-    Retorna la decisión del agente experto en formato diccionario.
-    """
     ingreso_mensual = ingreso_anual / 12.0
 
     if ingreso_anual <= 0:

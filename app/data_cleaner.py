@@ -1,31 +1,24 @@
-
 import pandas as pd
 import numpy as np
 import os
 import re
 
 def clean_numeric_value(val):
-    """
-    Limpia un valor numérico que puede contener caracteres basura
-    Ejemplo: '18.248.433.333.333.300' -> 18248433333333.30
-    """
     if pd.isna(val):
         return np.nan
     
     val_str = str(val).strip()
     
-    # Si está vacío o solo contiene caracteres especiales
+   
     if val_str == '' or val_str == '_':
         return np.nan
-    
-    # Eliminar caracteres no numéricos (excepto punto y signo negativo)
+
     cleaned = re.sub(r'[^\d.-]', '', val_str)
     
-    # Si después de limpiar queda vacío
     if cleaned == '' or cleaned == '.' or cleaned == '-':
         return np.nan
     
-    # Manejar múltiples puntos (formato europeo de miles)
+
     point_count = cleaned.count('.')
     
     try:
@@ -43,9 +36,6 @@ def clean_numeric_value(val):
         return np.nan
 
 def clean_text_value(val):
-    """
-    Limpia valores de texto eliminando caracteres especiales
-    """
     if pd.isna(val):
         return np.nan
     
@@ -101,7 +91,7 @@ def clean_data(input_path: str, output_path: str):
             after_nulls = df[col].isna().sum()
             print(f"  ✓ {col}: {before_nulls} -> {after_nulls} nulos")
     
-    # 3. Limpiar columnas de texto
+   
     print("\n🧹 Limpiando columnas de texto...")
     
     text_columns = ['Name', 'Occupation', 'Credit_Score', 'Credit_Mix', 'Payment_Behaviour', 'Month', 'Type_of_Loan']
@@ -113,19 +103,19 @@ def clean_data(input_path: str, output_path: str):
             after_nulls = df[col].isna().sum()
             print(f"  ✓ {col}: {before_nulls} -> {after_nulls} nulos")
     
-    # 4. Corregir valores negativos en columnas que no deberían ser negativas
+   
     print("\n🔧 Corrigiendo valores inválidos...")
     
     positive_columns = ['Annual_Income', 'Age', 'Num_Bank_Accounts', 'Num_Credit_Card']
     
     for col in positive_columns:
         if col in df.columns:
-            # Verificar si la columna es numérica
+           
             if not pd.api.types.is_numeric_dtype(df[col]):
                 print(f"  ⚠️ {col}: No es numérica, intentando convertir...")
                 df[col] = pd.to_numeric(df[col], errors='coerce')
             
-            # Ahora verificar valores negativos
+           
             try:
                 neg_count = (df[col] < 0).sum()
                 if neg_count > 0:
@@ -136,7 +126,7 @@ def clean_data(input_path: str, output_path: str):
             except Exception as e:
                 print(f"  ⚠️ {col}: Error al verificar: {e}")
     
-    # 5. Validar Credit_Score
+   
     if 'Credit_Score' in df.columns:
         valid_scores = ['Good', 'Standard', 'Poor']
         invalid_count = 0
@@ -147,10 +137,9 @@ def clean_data(input_path: str, output_path: str):
         if invalid_count > 0:
             print(f"  ✓ Credit_Score: {invalid_count} valores inválidos -> NaN")
     
-    # 6. Rellenar valores nulos
+   
     print("\n📊 Rellenando valores nulos...")
-    
-    # Para columnas numéricas, usar la mediana
+     
     for col in numeric_columns:
         if col in df.columns and df[col].isna().sum() > 0:
             if pd.api.types.is_numeric_dtype(df[col]):
