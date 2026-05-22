@@ -1,53 +1,60 @@
-def evaluar_cliente(ingreso_anual: float, deuda_pendiente: float, credit_score: str, pagos_atrasados: int) -> dict:
+from .ml_model import CreditRiskModel
+
+ml_model = CreditRiskModel()
+
+def evaluar_cliente(ingreso_anual: float, deuda_pendiente: float, 
+                   credit_score: str, pagos_atrasados: int) -> dict:
     """
     Evalúa a un cliente según su ingreso, deuda, score crediticio y pagos atrasados.
     Retorna la decisión del agente experto en formato diccionario.
     """
     ingreso_mensual = ingreso_anual / 12.0
 
-    # Calcular relación deuda/ingreso (DTI)
     if ingreso_anual <= 0:
         dti = float('inf')
     else:
         dti = deuda_pendiente / ingreso_anual
 
-    # Mapeo de score textual a numérico (por compatibilidad)
-    score_mapping = {'Good': 3, 'Standard': 2, 'Poor': 1}
-    num_score = score_mapping.get(credit_score, 2)
-
-    # --------------------------------------
-    # Lógica del Sistema Experto de Decisión
-    # --------------------------------------
-    # Riesgo Bajo:
-    #   - DTI < 0.1
-    #   - Credit Score > 700
-    #   - Pagos atrasados <= 1
-    #   → Estado: Aprobado
-    #   → Tasa: 15%
-    #   → Monto máximo: 50% del ingreso mensual
-    #
-    # Riesgo Medio:
-    #   - 0.1 <= DTI < 0.3
-    #   - Credit Score entre 600 y 700
-    #   - Pagos atrasados <= 2
-    #   → Estado: Aprobado condicional
-    #   → Tasa: 25%
-    #   → Monto máximo: 30% del ingreso mensual
-    #
-    # Riesgo Alto:
-    #   - DTI >= 0.3
-    #   - Credit Score < 600
-    #   - Pagos atrasados >= 3
-    #   → Estado: Rechazado
-    #   → Tasa: 40%
-    #   → Monto máximo: 10% del ingreso mensual
-
-    if dti < 0.1 and int(credit_score) > 700 and pagos_atrasados <= 1:
+    if isinstance(credit_score, str):
+       
+        if credit_score in ['Good', 'Standard', 'Poor']:
+            score_text = credit_score
+            
+            score_mapping = {'Good': 3, 'Standard': 2, 'Poor': 1}
+            num_score = score_mapping[credit_score]
+        else:
+            try:
+                numeric_score = int(credit_score)
+                if numeric_score > 700:
+                    score_text = 'Good'
+                elif numeric_score >= 600:
+                    score_text = 'Standard'
+                else:
+                    score_text = 'Poor'
+                num_score = 3 if score_text == 'Good' else (2 if score_text == 'Standard' else 1)
+            except:
+                
+                score_text = 'Standard'
+                num_score = 2
+    else:
+        
+        numeric_score = int(credit_score)
+        if numeric_score > 700:
+            score_text = 'Good'
+            num_score = 3
+        elif numeric_score >= 600:
+            score_text = 'Standard'
+            num_score = 2
+        else:
+            score_text = 'Poor'
+            num_score = 1
+    
+    if dti < 0.1 and score_text == 'Good' and pagos_atrasados <= 1:
         riesgo = "Riesgo Bajo"
         estado = "Aprobado"
         tasa = 15.0
         monto = ingreso_anual * 0.50
-    elif dti < 0.3 and int(credit_score) >= 600 and pagos_atrasados <= 2:
+    elif dti < 0.3 and num_score >= 2 and pagos_atrasados <= 2:
         riesgo = "Riesgo Medio"
         estado = "Aprobado condicional"
         tasa = 25.0
@@ -66,3 +73,32 @@ def evaluar_cliente(ingreso_anual: float, deuda_pendiente: float, credit_score: 
         "dti": round(dti, 4)
     }
 
+def determinar_riesgo_reglas(dti, credit_score, pagos_atrasados):
+    if dti < 0.1 and credit_score == 'Good' and pagos_atrasados <= 1:
+        return "Riesgo Bajo"
+    elif dti < 0.3 and credit_score in ['Good', 'Standard'] and pagos_atrasados <= 2:
+        return "Riesgo Medio"
+    else:
+        return "Riesgo Alto"
+
+def asignar_parametros_credito(riesgo, dti, ingreso_anual):
+    if riesgo == "Riesgo Bajo":
+        estado = "Aprobado"
+        tasa = 15.0
+        monto = ingreso_anual * 0.50
+    elif riesgo == "Riesgo Medio":
+        estado = "Aprobado condicional"
+        tasa = 25.0
+        monto = ingreso_anual * 0.30
+    else:
+        estado = "Rechazado"
+        tasa = 40.0
+        monto = ingreso_anual * 0.10
+    
+    return {
+        "riesgo": riesgo,
+        "estado": estado,
+        "tasa_interes_anual_pct": tasa,
+        "monto_maximo_prestable": round(monto, 2),
+        "dti": round(dti, 4)
+    }

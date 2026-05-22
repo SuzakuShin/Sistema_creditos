@@ -50,46 +50,65 @@ def evaluar(cliente: ClienteEval):
     """
     Evalúa el perfil de un solicitante usando el agente experto y devuelve la decisión tomada.
     """
-    decision = evaluar_cliente(
-        ingreso_anual=cliente.Annual_Income,
-        deuda_pendiente=cliente.Outstanding_Debt,
-        credit_score=cliente.Credit_Score,
-        pagos_atrasados=cliente.Pagos_Atrasados   # 🔹 este campo faltaba
-    )
-    return decision
+    try:
+        decision = evaluar_cliente(
+            ingreso_anual=cliente.Annual_Income,
+            deuda_pendiente=cliente.Outstanding_Debt,
+            credit_score=cliente.Credit_Score,
+            pagos_atrasados=cliente.Pagos_Atrasados
+        )
+        
+        # Log de la decisión (útil para debugging)
+        print(f"Cliente evaluado - Riesgo: {decision['riesgo']}, DTI: {decision['dti']}")
+        
+        return decision
+        
+    except Exception as e:
+        # Manejo de errores inesperados
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error al evaluar al cliente: {str(e)}"
+        )
 
 
 
 @app.get("/cliente/{cliente_id}", tags=["Consultas de Clientes"])
 def obtener_cliente(cliente_id: str):
     """
-    Busca los datos de un cliente específico (ej. CUS_0xd40) en el dataset limpio y muestra su decisión de crédito pre-calculada.
+    Busca los datos de un cliente específico (ej. CUS_0xd40) en el dataset limpio 
+    y muestra su decisión de crédito pre-calculada.
     """
     if df_limpio is None or df_limpio.empty:
         raise HTTPException(status_code=503, detail="El dataset no está disponible")
-    
-    # Filtrar cliente (en el CSV se llama Customer_ID)
+
     cliente = df_limpio[df_limpio['Customer_ID'] == cliente_id]
-    
+
     if cliente.empty:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    
-    # Usar el primer registro del cliente (podría haber varios meses, tomamos el más reciente o el primero)
+
     datos_cliente = cliente.iloc[0]
-    
-    # Evaluamos con nuestro agente
+
+    if 'Num_of_Delayed_Payment' in datos_cliente.index:
+        pagos_atrasados = int(datos_cliente['Num_of_Delayed_Payment'])
+    elif 'Delay_from_due_date' in datos_cliente.index:
+        pagos_atrasados = int(datos_cliente['Delay_from_due_date'])
+    else:
+        pagos_atrasados = 0  
+
     decision = evaluar_cliente(
-        ingreso_anual=datos_cliente['Annual_Income'],
-        deuda_pendiente=datos_cliente['Outstanding_Debt'],
-        credit_score=datos_cliente['Credit_Score']
+        ingreso_anual=float(datos_cliente['Annual_Income']),
+        deuda_pendiente=float(datos_cliente['Outstanding_Debt']),
+        credit_score=str(datos_cliente['Credit_Score']),
+        pagos_atrasados=pagos_atrasados  
     )
-    
+
     return {
         "Customer_ID": cliente_id,
         "datos_base": {
             "ingreso_anual": datos_cliente['Annual_Income'],
             "deuda_pendiente": datos_cliente['Outstanding_Debt'],
-            "score": datos_cliente['Credit_Score']
+            "score": datos_cliente['Credit_Score'],
+            "pagos_atrasados": pagos_atrasados
         },
         "decision_agente": decision
     }
