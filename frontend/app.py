@@ -98,44 +98,93 @@ st.markdown("""
 API_BASE_URL = os.getenv("API_URL", "http://localhost:8000")
 
 def get_api_health():
+    """Verificar salud de la API"""
     try:
         response = requests.get(f"{API_BASE_URL}/health", timeout=5)
-        return response.json()
+        if response.status_code == 200:
+            return response.json()
     except:
-        return None
+        pass
+    return None
 
 def get_statistics():
+    """Obtener estadísticas generales"""
     try:
         response = requests.get(f"{API_BASE_URL}/estadisticas", timeout=5)
-        return response.json()
+        if response.status_code == 200:
+            return response.json()
     except:
-        return None
+        pass
+    return None
 
 def get_cliente(cliente_id):
+    """Buscar cliente por ID"""
     try:
-        response = requests.get(f"{API_BASE_URL}/cliente/{cliente_id}", timeout=5)
+        response = requests.get(f"{API_BASE_URL}/perfil/{cliente_id}", timeout=10)
         if response.status_code == 200:
             return response.json()
-        return None
     except:
-        return None
+        pass
+    return None
 
 def evaluate_cliente(data):
+    """Evaluar cliente"""
     try:
-        response = requests.post(f"{API_BASE_URL}/evaluar", json=data, timeout=5)
+        response = requests.post(f"{API_BASE_URL}/evaluar", json=data, timeout=10)
         if response.status_code == 200:
             return response.json()
-        return None
-    except:
-        return None
-
+    except Exception as e:
+        print(f"Error evaluate_cliente: {e}")
+    return None
 # ============================================
-# SIDEBAR
+# SIDEBAR CON MENÚ GRÁFICO
 # ============================================
 with st.sidebar:
-    st.markdown("# 🏦")
-    st.markdown("## Análisis Crediticio")
-    st.markdown("*Sistema Experto de Análisis Crediticio*")
+    # Logo y título
+    st.markdown("""
+    <div style="text-align: center; padding: 10px 0;">
+        <div style="font-size: 48px;">🏦</div>
+        <h2 style="margin: 5px 0; background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 20px;">
+            CreditRisk Analyzer
+        </h2>
+        <p style="color: #64748b; font-size: 11px; margin: 0;">Sistema Experto de Crédito</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Estado de la API
+    health = get_api_health()
+    if health:
+        st.markdown("""
+        <div style="
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid #10b981;
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        ">
+            <span style="font-size: 12px;">🟢</span>
+            <span style="color: #10b981; font-size: 13px; font-weight: bold;">API Conectada</span>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        ">
+            <span style="font-size: 12px;">🔴</span>
+            <span style="color: #ef4444; font-size: 13px; font-weight: bold;">API Desconectada</span>
+        </div>
+        """, unsafe_allow_html=True)
     
     st.divider()
     
@@ -143,10 +192,14 @@ with st.sidebar:
     health = get_api_health()
     if health:
         st.success("🟢 API Conectada")
-        if health.get('dataset_cargado'):
-            st.info(f"📊 {health.get('registros_disponibles', 0):,} registros")
+        if health.get('dataset_crediticio_cargado'):
+            st.info(f"📊 {health.get('registros_crediticios', 0):,} registros crediticios")
+        if health.get('dataset_personal_cargado'):
+            st.info(f"👤 {health.get('registros_personales', 0):,} registros personales")
     else:
         st.error("🔴 API Desconectada")
+        if st.button("🔄 Reintentar conexión"):
+            st.rerun()
     
     st.divider()
     st.markdown("### 📋 Navegación")
@@ -295,33 +348,172 @@ if page == "🔍 Buscar Cliente":
                         </div>
                         """, unsafe_allow_html=True)
                     
-                    st.divider()                
-                # ============================================
-                # ANÁLISIS CREDITICIO
-                # ============================================
-                st.markdown("## 📊 Análisis Crediticio")
+                    st.divider()
                 
-                # Determinar colores según riesgo
-                if 'Bajo' in riesgo:
-                    risk_color = "#10b981"
-                    risk_emoji = "🟢"
-                elif 'Medio' in riesgo:
-                    risk_color = "#f59e0b"
-                    risk_emoji = "🟡"
+                # ============================================
+                # COMPARACIÓN AGENTE EXPERTO vs ML
+                # ============================================
+                st.markdown("## 🤖 Comparación de Sistemas")
+                
+                decision_ml = result.get('decision_ml', None)
+                
+                # Determinar si concuerdan
+                if decision_ml:
+                    concuerdan = decision.get('riesgo') == decision_ml.get('riesgo')
                 else:
-                    risk_color = "#ef4444"
-                    risk_emoji = "🔴"
-                col1, col2 = st.columns([3, 1])
+                    concuerdan = None
+                
+                # Cards de comparación
+                col1, col2 = st.columns(2)
+                
+                # === AGENTE EXPERTO ===
                 with col1:
-                    st.markdown(f"### Cliente: {datos_personales.get('firstname', '')} {datos_personales.get('lastname', '')}")
+                    riesgo_agente = decision.get('riesgo', '')
+                    estado_agente = decision.get('estado', '')
+                    
+                    if 'Bajo' in riesgo_agente:
+                        color_agente = "#10b981"
+                        emoji_agente = "🟢"
+                        bg_agente = "rgba(16, 185, 129, 0.1)"
+                    elif 'Medio' in riesgo_agente:
+                        color_agente = "#f59e0b"
+                        emoji_agente = "🟡"
+                        bg_agente = "rgba(245, 158, 11, 0.1)"
+                    else:
+                        color_agente = "#ef4444"
+                        emoji_agente = "🔴"
+                        bg_agente = "rgba(239, 68, 68, 0.1)"
+                    
+                    st.markdown(f"""
+                    <div style="
+                        background: {bg_agente};
+                        border: 2px solid {color_agente};
+                        border-radius: 16px;
+                        padding: 20px;
+                        text-align: center;
+                    ">
+                        <div style="font-size: 40px; margin-bottom: 10px;">🧠</div>
+                        <h3 style="color: {color_agente}; margin: 10px 0;">AGENTE EXPERTO</h3>
+                        <div style="font-size: 48px; margin: 10px 0;">{emoji_agente}</div>
+                        <h2 style="color: {color_agente}; margin: 10px 0;">{riesgo_agente}</h2>
+                        <p style="color: #e2e8f0; font-size: 18px;">{estado_agente}</p>
+                        <hr style="border-color: #334155; margin: 15px 0;">
+                        <p style="color: #94a3b8; font-size: 12px;">Basado en reglas expertas</p>
+                        <p style="color: #94a3b8; font-size: 12px;">DTI + Score + Pagos Atrasados</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Métricas del agente
+                    with st.container():
+                        st.metric("Tasa Asignada", f"{decision.get('tasa_interes_anual_pct', 0)}%")
+                        st.metric("Monto Máximo", f"${decision.get('monto_maximo_prestable', 0):,.2f}")
+                
+                # === MODELO ML ===
                 with col2:
-                    st.markdown(f"### {risk_emoji} {riesgo}")                
-                if estado == "Aprobado":
-                    st.success(f"✅ {estado}")
-                elif estado == "Aprobado condicional":
-                    st.warning(f"⚠️ {estado}")
-                else:
-                    st.error(f"❌ {estado}")
+                    if decision_ml:
+                        riesgo_ml = decision_ml.get('riesgo', '')
+                        confianza_ml = decision_ml.get('confianza', 85.0)
+                        
+                        if 'Bajo' in riesgo_ml:
+                            color_ml = "#10b981"
+                            emoji_ml = "🟢"
+                            bg_ml = "rgba(16, 185, 129, 0.1)"
+                        elif 'Medio' in riesgo_ml:
+                            color_ml = "#f59e0b"
+                            emoji_ml = "🟡"
+                            bg_ml = "rgba(245, 158, 11, 0.1)"
+                        else:
+                            color_ml = "#ef4444"
+                            emoji_ml = "🔴"
+                            bg_ml = "rgba(239, 68, 68, 0.1)"
+                        
+                        st.markdown(f"""
+                        <div style="
+                            background: {bg_ml};
+                            border: 2px solid {color_ml};
+                            border-radius: 16px;
+                            padding: 20px;
+                            text-align: center;
+                        ">
+                            <div style="font-size: 40px; margin-bottom: 10px;">🤖</div>
+                            <h3 style="color: {color_ml}; margin: 10px 0;">MACHINE LEARNING</h3>
+                            <div style="font-size: 48px; margin: 10px 0;">{emoji_ml}</div>
+                            <h2 style="color: {color_ml}; margin: 10px 0;">{riesgo_ml}</h2>
+                            <p style="color: #e2e8f0; font-size: 18px;">Confianza: {confianza_ml:.1f}%</p>
+                            <hr style="border-color: #334155; margin: 15px 0;">
+                            <p style="color: #94a3b8; font-size: 12px;">Random Forest Classifier</p>
+                            <p style="color: #94a3b8; font-size: 12px;">100 árboles de decisión</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Métricas del ML
+                        with st.container():
+                            st.metric("Confianza", f"{confianza_ml:.1f}%")
+                            st.metric("Modelo", "Random Forest")
+                    else:
+                        # ML no disponible
+                        st.markdown(f"""
+                        <div style="
+                            background: rgba(30, 41, 59, 0.4);
+                            border: 2px dashed #334155;
+                            border-radius: 16px;
+                            padding: 20px;
+                            text-align: center;
+                            height: 100%;
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: center;
+                        ">
+                            <div style="font-size: 40px; margin-bottom: 10px;">🔧</div>
+                            <h3 style="color: #64748b; margin: 10px 0;">ML NO DISPONIBLE</h3>
+                            <p style="color: #94a3b8;">Modelo no entrenado</p>
+                            <p style="color: #64748b; font-size: 12px;">Ejecute el entrenamiento para habilitar</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                # === INDICADOR DE CONCORDANCIA ===
+                if concuerdan is not None:
+                    st.divider()
+                    
+                    if concuerdan:
+                        st.success("""
+                        ### ✅ CONCORDANCIA: Ambos sistemas coinciden
+                        El Agente Experto y el Modelo ML llegaron a la misma conclusión, 
+                        lo que aumenta la confiabilidad de la decisión.
+                        """)
+                    else:
+                        st.warning("""
+                        ### ⚠️ DISCREPANCIA: Los sistemas difieren
+                        El Agente Experto y el Modelo ML llegaron a conclusiones diferentes.
+                        Se recomienda revisión manual del caso.
+                        """)
+                        
+                        # Mostrar explicación de la discrepancia
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.markdown(f"""
+                            **Agente Experto dice:**
+                            - DTI: {decision.get('dti', 0)*100:.1f}%
+                            - Score: {datos_credito.get('credit_score', 'N/A')}
+                            - Atrasados: {datos_credito.get('pagos_atrasados', 0)}
+                            → Riesgo: **{riesgo_agente}**
+                            """)
+                        with col2:
+                            st.markdown(f"""
+                            **Modelo ML dice:**
+                            - Confianza: {confianza_ml:.1f}%
+                            - Patrones detectados en datos históricos
+                            → Riesgo: **{riesgo_ml}**
+                            """)
+                
+                st.divider()
+                
+                # ============================================
+                # MÉTRICAS CREDITICIAS
+                # ============================================
+                st.markdown("## 📊 Métricas Crediticias")
+                
+                # Métricas crediticias
                 col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
@@ -336,6 +528,7 @@ if page == "🔍 Buscar Cliente":
                 with col4:
                     st.metric("Pagos Atrasados", datos_credito.get('pagos_atrasados', 0))
                 
+                # Decisión del agente
                 st.markdown("#### 🎯 Decisión del Agente")
                 
                 col1, col2, col3 = st.columns(3)
@@ -368,6 +561,8 @@ if page == "🔍 Buscar Cliente":
                     risk_icon = "🔴"
                 
                 bar_width = min(dti_value, 100)
+                
+                # Barra de progreso personalizada
                 st.markdown(f"""
                 <div style="
                     background: rgba(30, 41, 59, 0.8);
@@ -446,6 +641,8 @@ if page == "🔍 Buscar Cliente":
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+                
+                # Gráfico de velocímetro
                 fig = go.Figure(go.Indicator(
                     mode="gauge+number",
                     value=dti_value,
@@ -489,12 +686,15 @@ if page == "🔍 Buscar Cliente":
 # ============================================
 elif page == "📝 Evaluar Solicitante":
     
+    # Header
     col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
         st.markdown("# 📝 Evaluar Solicitante")
         st.markdown("*Complete el formulario para evaluar el perfil crediticio*")
     
     st.divider()
+    
+    # Formulario en un contenedor
     with st.container():
         col1, col2 = st.columns(2)
         
@@ -537,14 +737,18 @@ elif page == "📝 Evaluar Solicitante":
             )
     
     st.divider()
+    
+    # Botón de evaluación centrado
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         evaluar_btn = st.button("🚀 Evaluar Solicitante", key="btn_evaluar", use_container_width=True)
     
+    # Procesar evaluación
     if evaluar_btn:
         with st.spinner("🔄 Analizando perfil crediticio..."):
             time.sleep(0.5)
             
+            # Preparar datos
             data = {
                 "Annual_Income": annual_income,
                 "Outstanding_Debt": outstanding_debt,
@@ -552,6 +756,7 @@ elif page == "📝 Evaluar Solicitante":
                 "Pagos_Atrasados": int(pagos_atrasados)
             }
             
+            # Llamar a la API
             result = evaluate_cliente(data)
             
             if result:
@@ -560,6 +765,7 @@ elif page == "📝 Evaluar Solicitante":
                 
                 st.divider()
                 
+                # Mostrar resultado según el riesgo
                 if 'Bajo' in riesgo:
                     st.success(f"### 🟢 {estado} - {riesgo}")
                     risk_color = "#10b981"
@@ -569,6 +775,8 @@ elif page == "📝 Evaluar Solicitante":
                 else:
                     st.error(f"### 🔴 {estado} - {riesgo}")
                     risk_color = "#ef4444"
+                
+                # Métricas en cards
                 col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
@@ -594,6 +802,8 @@ elif page == "📝 Evaluar Solicitante":
                         label="Riesgo",
                         value=riesgo.replace('Riesgo ', '')
                     )
+                
+                # Gráfico de velocímetro
                 st.divider()
                 st.markdown("### 📈 Indicador de Riesgo DTI")
                 
@@ -638,6 +848,7 @@ elif page == "📝 Evaluar Solicitante":
                 
                 st.plotly_chart(fig, use_container_width=True)
                 
+                # Resumen de la decisión
                 st.divider()
                 st.markdown("### 📋 Resumen de la Decisión")
                 
@@ -664,6 +875,8 @@ elif page == "📝 Evaluar Solicitante":
                 - El endpoint `/evaluar` esté disponible
                 - Los datos ingresados sean válidos
                 """)
+    
+    # Si no se ha evaluado, mostrar mensaje de instrucción
     if 'evaluar_btn' not in locals() or not evaluar_btn:
         st.info("👆 Complete el formulario y presione **Evaluar Solicitante** para ver el resultado")                
 
@@ -679,6 +892,7 @@ elif page == "📊 Dashboard":
     stats = get_statistics()
     
     if stats:
+        # KPIs principales
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -695,6 +909,7 @@ elif page == "📊 Dashboard":
         
         st.divider()
         
+        # Gráficos
         col1, col2 = st.columns(2)
         
         with col1:
@@ -722,6 +937,7 @@ elif page == "📊 Dashboard":
         with col2:
             st.markdown("### 📈 Indicadores del Sistema")
             
+            # Barras de progreso
             st.markdown("**Calidad de Cartera**")
             st.progress(75, text="Buena (75%)")
             
