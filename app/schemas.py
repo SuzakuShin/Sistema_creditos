@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, validator
-from typing import Union
+from typing import Union, Optional
 
 class ClienteEval(BaseModel):
     Annual_Income: float = Field(..., description="Ingreso anual del cliente en dólares", gt=0)
@@ -9,11 +9,8 @@ class ClienteEval(BaseModel):
     
     @validator('Credit_Score')
     def validar_credit_score(cls, v):
-       
         if v in ['Good', 'Standard', 'Poor']:
             return v
-        
-        # Aceptar valores numéricos como string
         try:
             score_num = int(v)
             if 300 <= score_num <= 850:
@@ -42,4 +39,5 @@ class DecisionResponse(BaseModel):
     estado: str = Field(..., description="Decisión final (Aprobado, Aprobado condicional, Rechazado)")
     tasa_interes_anual_pct: float = Field(..., description="Tasa de interés anual asignada en %")
     monto_maximo_prestable: float = Field(..., description="Monto máximo que se le puede prestar")
-    dti: float = Field(..., description="Relación Deuda/Ingreso calculada")
+    dti: float = Field(..., description="DTI mensual calculado (cuota estimada / ingreso mensual)")
+    score_crediticio: Optional[int] = Field(None, description="Puntaje interno del scorecard (0-100)")

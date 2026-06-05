@@ -188,9 +188,9 @@ def obtener_perfil_completo(cliente_id: str):
             'Outstanding_Debt': deuda_pendiente,
             'monthly_income': ingreso_anual / 12.0,
             'debt_to_income': dti,
-            'Credit_Score': credit_score_str
-        }
-        
+            'Credit_Score': credit_score_str,
+            'delayed_payments': pagos_atrasados 
+        }        
         ml_prediction = ml.predict(ml_data)
         
         if ml_prediction is not None:

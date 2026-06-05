@@ -45,11 +45,17 @@ class CreditRiskModel:
         else:
             df['credit_score_encoded'] = 1
         
-        # Seleccionar features
-        feature_cols = ['Annual_Income', 'Outstanding_Debt', 'monthly_income', 
-                       'debt_to_income', 'credit_score_encoded']
+        if 'delayed_payments' not in df.columns:
+            df['delayed_payments'] = 0
         
-        # Asegurar que todas las columnas existan
+        feature_cols = [
+            'Annual_Income', 
+            'Outstanding_Debt', 
+            'monthly_income', 
+            'debt_to_income', 
+            'credit_score_encoded',
+            'delayed_payments'     
+        ]
         for col in feature_cols:
             if col not in df.columns:
                 df[col] = 0
@@ -73,6 +79,7 @@ class CreditRiskModel:
             print(f"❌ Error en predicción ML: {e}")
             return None
     
+    
     def train(self, df: pd.DataFrame, force: bool = False):
         """
         Entrena el modelo con datos históricos
@@ -85,7 +92,6 @@ class CreditRiskModel:
         print("🔄 ENTRENANDO MODELO DE MACHINE LEARNING")
         print("=" * 50)
         
-        # Crear copia para no modificar el original
         df = df.copy()
         
         # Calcular features derivadas
@@ -97,6 +103,26 @@ class CreditRiskModel:
             1.0
         )
         
+        # Procesar pagos atrasados
+        print("🔧 Procesando pagos atrasados...")
+        if 'Num_of_Delayed_Payment' in df.columns:
+            df['delayed_payments'] = pd.to_numeric(
+                df['Num_of_Delayed_Payment'].astype(str).str.replace('_', '').str.strip(),
+                errors='coerce'
+            )
+        elif 'Delay_from_due_date' in df.columns:
+            df['delayed_payments'] = pd.to_numeric(
+                df['Delay_from_due_date'].astype(str).str.replace('_', '').str.strip(),
+                errors='coerce'
+            )
+        else:
+            df['delayed_payments'] = 0
+        
+        df['delayed_payments'] = df['delayed_payments'].fillna(0).clip(lower=0, upper=20)
+        print(f"   Pagos atrasados - Min: {df['delayed_payments'].min():.0f}, "
+            f"Max: {df['delayed_payments'].max():.0f}, "
+            f"Media: {df['delayed_payments'].mean():.1f}")
+        
         # Limpiar Credit_Score
         df['Credit_Score'] = df['Credit_Score'].fillna('Standard')
         valid_scores = ['Good', 'Standard', 'Poor']
@@ -105,40 +131,61 @@ class CreditRiskModel:
         # Codificar Credit_Score
         print("🏷️ Codificando variables...")
         self.label_encoder = LabelEncoder()
-        self.label_encoder.fit(['Poor', 'Standard', 'Good'])  # Orden específico
+        self.label_encoder.fit(['Poor', 'Standard', 'Good'])
         df['credit_score_encoded'] = self.label_encoder.transform(df['Credit_Score'])
         
-        # Crear variable target basada en reglas
-        print("🎯 Creando variable target...")
-        def assign_risk(row):
-            dti = row['debt_to_income']
-            score = row['Credit_Score']
-            delayed = row.get('Num_of_Delayed_Payment', 0)
-            
-            if pd.isna(delayed):
-                delayed = 0
-            
-            # Dar más peso al DTI y Score que a los pagos atrasados
-            # para balancear mejor las clases
-            if dti < 0.2 and score == 'Good' and delayed <= 3:
+        # ================================================================
+        # NUEVO TARGET: Scorecard simplificado que usa TODAS las variables
+        # pero de forma que ninguna variable por sí sola pueda predecirlo
+        # ================================================================
+        print("🎯 Creando variable target (scorecard multicriterio)...")
+        
+        # Normalizar DTI a escala 0-1 (invertido: menor DTI = mejor)
+        dti_max = df['debt_to_income'].max()
+        df['score_dti'] = (1 - df['debt_to_income'] / dti_max) * 30
+        
+        # Score crediticio a puntos
+        score_map_puntos = {'Good': 40, 'Standard': 25, 'Poor': 5}
+        df['score_credit'] = df['Credit_Score'].map(score_map_puntos)
+        
+        # Pagos atrasados a puntos (invertido: menos atrasos = mejor)
+        df['score_pagos'] = (1 - df['delayed_payments'] / 20) * 30
+        
+        # Puntaje total (0-100)
+        df['puntaje_total'] = df['score_dti'] + df['score_credit'] + df['score_pagos']
+        
+        # Clasificación final con umbrales que generan overlap
+        def classify(puntaje):
+            if puntaje >= 65:
                 return 0  # Bajo
-            elif dti < 0.4 and score in ['Good', 'Standard'] and delayed <= 5:
+            elif puntaje >= 35:
                 return 1  # Medio
             else:
                 return 2  # Alto
         
-        df['risk_level'] = df.apply(assign_risk, axis=1)
+        df['risk_level'] = df['puntaje_total'].apply(classify)
         
         # Mostrar distribución
-        print("\n📊 Distribución de riesgo:")
+        print("\n📊 Distribución de riesgo (target):")
         dist = df['risk_level'].value_counts().sort_index()
         for level, count in dist.items():
             labels = {0: 'Bajo', 1: 'Medio', 2: 'Alto'}
             print(f"   {labels[level]}: {count} ({count/len(df)*100:.1f}%)")
         
-        # Preparar features y target
-        feature_cols = ['Annual_Income', 'Outstanding_Debt', 'monthly_income', 
-                       'debt_to_income', 'credit_score_encoded']
+        # Mostrar estadísticas del puntaje
+        print(f"\n📊 Estadísticas del puntaje total:")
+        print(f"   Min: {df['puntaje_total'].min():.1f} | Max: {df['puntaje_total'].max():.1f}")
+        print(f"   Media: {df['puntaje_total'].mean():.1f} | Mediana: {df['puntaje_total'].median():.1f}")
+        
+        # FEATURES (las mismas, pero ahora el target es más complejo)
+        feature_cols = [
+            'Annual_Income', 
+            'Outstanding_Debt', 
+            'monthly_income', 
+            'debt_to_income', 
+            'credit_score_encoded',
+            'delayed_payments'
+        ]
         
         X = df[feature_cols].fillna(0)
         y = df['risk_level']
@@ -151,13 +198,13 @@ class CreditRiskModel:
         
         print(f"   Train: {len(X_train)} | Test: {len(X_test)}")
         
-        # Entrenar modelo
+        # Entrenar modelo (reducir max_depth para evitar overfitting)
         print("\n🌲 Entrenando Random Forest...")
         self.model = RandomForestClassifier(
             n_estimators=100,
-            max_depth=15,
-            min_samples_split=5,
-            min_samples_leaf=2,
+            max_depth=10,            # Reducido de 15 a 10
+            min_samples_split=10,    # Aumentado de 5 a 10
+            min_samples_leaf=5,      # Aumentado de 2 a 5
             random_state=42,
             n_jobs=-1,
             class_weight='balanced'
@@ -172,10 +219,24 @@ class CreditRiskModel:
         print(f"   Accuracy Train: {train_acc:.2%}")
         print(f"   Accuracy Test:  {test_acc:.2%}")
         
+        # Reporte de clasificación
+        from sklearn.metrics import classification_report
+        y_pred = self.model.predict(X_test)
+        print("\n📋 Reporte de clasificación (Test):")
+        print(classification_report(y_test, y_pred, 
+                                    target_names=['Bajo', 'Medio', 'Alto']))
+        
         # Importancia de features
         print("\n📊 Importancia de features:")
         importances = self.model.feature_importances_
-        for col, imp in zip(feature_cols, importances):
+        
+        feature_importance = sorted(
+            zip(feature_cols, importances), 
+            key=lambda x: x[1], 
+            reverse=True
+        )
+        
+        for col, imp in feature_importance:
             bar = "█" * int(imp * 50)
             print(f"   {col:<25s}: {imp:.4f} {bar}")
         
@@ -192,9 +253,7 @@ class CreditRiskModel:
         return test_acc
 
 
-# ============================================================
-# SCRIPT DE ENTRENAMIENTO
-# ============================================================
+# ENTRENAMIENTO
 if __name__ == "__main__":
     print("\n🚀 INICIANDO ENTRENAMIENTO DEL MODELO ML\n")
     

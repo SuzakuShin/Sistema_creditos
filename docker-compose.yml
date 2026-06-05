@@ -25,6 +25,7 @@ services:
       - "8501:8501"
     volumes:
       - ./data:/app/data
+      - ./frontend:/app/frontend
     environment:
       - API_URL=http://api:8000
       - PYTHONUNBUFFERED=1
