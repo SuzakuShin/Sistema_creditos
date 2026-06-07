@@ -261,7 +261,7 @@
 
 ---
 
-### 2️⃣ Agente Experto (`agent.py`)
+### 2️⃣ Agente Experto (`agent.py`) + Tasas BCRA (`tasas_bcra.py`)
 
 <div style="background: #1e293b; padding: 20px; border-radius: 10px;">
 
@@ -276,7 +276,7 @@
 <tr>
   <td>📊 DTI Mensual</td>
   <td align="center"><b>25 pts</b></td>
-  <td>Cuota estimada / Ingreso mensual</td>
+  <td>Cuota estimada (2.5% deuda) / Ingreso mensual</td>
 </tr>
 <tr>
   <td>📈 Credit Score</td>
@@ -286,7 +286,7 @@
 <tr>
   <td>⚠️ Pagos Atrasados</td>
   <td align="center"><b>40 pts</b></td>
-  <td>0=40 | 1=25 | 2=12 | 3-5=3 | >5=0</td>
+  <td>0=40 | 1=25 | 2=12 | 3-5=3 | >5=0 (RECHAZO)</td>
 </tr>
 </table>
 
@@ -294,38 +294,48 @@
 🚫 <b>Condición de Corte (Hard Rule):</b> Más de 5 pagos atrasados = <span style="color: #ef4444;">Rechazo Automático (0 puntos)</span>
 </div>
 
-<b>Clasificación Final:</b>
+<b>Clasificación:</b>
 
 <table>
 <tr>
   <th>Puntaje</th>
   <th>Riesgo</th>
   <th>Decisión</th>
-  <th>Tasa</th>
   <th>Monto Máx</th>
 </tr>
 <tr style="background: rgba(16, 185, 129, 0.1);">
   <td align="center">≥ 75</td>
   <td>🟢 Bajo</td>
   <td>Aprobado</td>
-  <td>15%</td>
-  <td>50% ingreso</td>
+  <td>50% ingreso anual</td>
 </tr>
 <tr style="background: rgba(245, 158, 11, 0.1);">
   <td align="center">45-74</td>
   <td>🟡 Medio</td>
   <td>Aprobado condicional</td>
-  <td>25%</td>
-  <td>30% ingreso</td>
+  <td>30% ingreso anual</td>
 </tr>
 <tr style="background: rgba(239, 68, 68, 0.1);">
   <td align="center">< 45</td>
   <td>🔴 Alto</td>
   <td>Rechazado</td>
-  <td>0%</td>
   <td>$0</td>
 </tr>
 </table>
+
+<hr style="border-color: #334155;">
+
+<b>🇦🇷 Cálculo de Tasas con API BCRA:</b>
+
+<pre style="background: #0f172a; color: #10b981; padding: 15px; border-radius: 8px;">
+Tasa Final = Tasa BCRA × Spread Riesgo + Ajustes Perfil
+
+Donde:
+  • Tasa BCRA: Tasa préstamos personales (estadisticasbcra.com)
+  • Spread: Bajo=0.75x | Medio=1.15x | Alto=2.5x
+  • Ajustes: DTI + Score + Pagos Atrasados
+  • CFT: TNA × 1.35 (estimado)
+</pre>
 
 </div>
 
@@ -346,10 +356,9 @@ credit_score_encoded | home_ownership_encoded
 default_on_file | delayed_payments
 </pre>
 
-<b>🌲 Hiperparámetros del Random Forest:</b>
+<b>🌲 Hiperparámetros:</b>
 
 <table>
-<tr><th>Parámetro</th><th>Valor</th></tr>
 <tr><td>n_estimators</td><td align="center">150</td></tr>
 <tr><td>max_depth</td><td align="center">12</td></tr>
 <tr><td>min_samples_split</td><td align="center">20</td></tr>
@@ -357,34 +366,14 @@ default_on_file | delayed_payments
 <tr><td>class_weight</td><td align="center">balanced</td></tr>
 </table>
 
-<b>📈 Métricas de Evaluación:</b>
+<b>📈 Métricas:</b>
 
 <table>
-<tr>
-  <th>Métrica</th>
-  <th>Valor</th>
-  <th>Interpretación</th>
-</tr>
-<tr>
-  <td>Accuracy</td>
-  <td align="center"><b>87.44%</b></td>
-  <td>Acierta en ~9 de cada 10 casos</td>
-</tr>
-<tr>
-  <td>ROC AUC</td>
-  <td align="center"><b>0.9099</b></td>
-  <td>Excelente capacidad discriminativa</td>
-</tr>
-<tr>
-  <td>Precision (No Pagó)</td>
-  <td align="center">70%</td>
-  <td>Cuando dice "no pagará", acierta 7/10</td>
-</tr>
-<tr>
-  <td>Recall (No Pagó)</td>
-  <td align="center">74%</td>
-  <td>Detecta 3/4 de los que no pagarán</td>
-</tr>
+<tr><th>Métrica</th><th>Valor</th><th>Interpretación</th></tr>
+<tr><td>Accuracy</td><td align="center"><b>87.44%</b></td><td>Acierta en ~9 de cada 10 casos</td></tr>
+<tr><td>ROC AUC</td><td align="center"><b>0.9099</b></td><td>Excelente capacidad discriminativa</td></tr>
+<tr><td>Precision (No Pagó)</td><td align="center">70%</td><td>Cuando dice "no pagará", acierta 7/10</td></tr>
+<tr><td>Recall (No Pagó)</td><td align="center">74%</td><td>Detecta 3/4 de los que no pagarán</td></tr>
 </table>
 
 <b>📊 Importancia de Features:</b>
@@ -395,7 +384,6 @@ default_on_file | delayed_payments
 <span style="color: #f59e0b;">monthly_income</span>           : 12.3% ██████
 <span style="color: #f59e0b;">credit_score_encoded</span>     : 11.0% █████
 <span style="color: #f59e0b;">Annual_Income</span>            : 10.8% █████
-<span style="color: #f59e0b;">home_ownership_encoded</span>   :  9.6% ████
 </pre>
 
 </div>
@@ -411,24 +399,24 @@ default_on_file | delayed_payments
   <th>Descripción</th>
 </tr>
 <tr>
-  <td><span style="background: #10b981; color: white; padding: 4px 10px; border-radius: 4px; font-weight: bold;">GET</span></td>
+  <td><span style="background: #10b981; color: white; padding: 4px 10px; border-radius: 4px;">GET</span></td>
   <td><code>/health</code></td>
   <td>Estado del sistema y datasets cargados</td>
 </tr>
 <tr>
-  <td><span style="background: #10b981; color: white; padding: 4px 10px; border-radius: 4px; font-weight: bold;">GET</span></td>
+  <td><span style="background: #10b981; color: white; padding: 4px 10px; border-radius: 4px;">GET</span></td>
   <td><code>/estadisticas</code></td>
   <td>Métricas globales (ingresos, deudas, scores)</td>
 </tr>
 <tr>
-  <td><span style="background: #10b981; color: white; padding: 4px 10px; border-radius: 4px; font-weight: bold;">GET</span></td>
+  <td><span style="background: #10b981; color: white; padding: 4px 10px; border-radius: 4px;">GET</span></td>
   <td><code>/perfil/{cliente_id}</code></td>
-  <td>Perfil completo + Agente + ML + Concordancia</td>
+  <td>Perfil completo + Agente + ML + Tasas BCRA + Concordancia</td>
 </tr>
 <tr>
-  <td><span style="background: #3b82f6; color: white; padding: 4px 10px; border-radius: 4px; font-weight: bold;">POST</span></td>
+  <td><span style="background: #3b82f6; color: white; padding: 4px 10px; border-radius: 4px;">POST</span></td>
   <td><code>/evaluar</code></td>
-  <td>Evaluación de nuevo solicitante</td>
+  <td>Evaluación de nuevo solicitante con tasas reales</td>
 </tr>
 </table>
 
@@ -524,6 +512,8 @@ default_on_file | delayed_payments
 
 ---
 
+
+
 ## 📊 Ejemplo de Respuesta API
 
 <details open>
@@ -552,7 +542,8 @@ default_on_file | delayed_payments
     "estado": "Rechazado",
     "tasa_interes_anual_pct": 0,
     "monto_maximo_prestable": 0,
-    "score_crediticio": 0
+    "score_crediticio": 0,
+    "fundamentacion_tasa": null
   },
   "decision_ml": {
     "riesgo": "Riesgo Alto",
@@ -563,3 +554,27 @@ default_on_file | delayed_payments
   },
   "concordancia": true
 }
+```
+</details><details> <summary><b>POST /evaluar (Cliente Bueno)</b></summary>
+
+```json
+{
+  "riesgo": "Riesgo Bajo",
+  "estado": "Aprobado",
+  "tasa_interes_anual_pct": 58.75,
+  "monto_maximo_prestable": 30000.0,
+  "dti": 0.015,
+  "score_crediticio": 83,
+  "fundamentacion_tasa": {
+    "tasa_mercado_bcra": 85.0,
+    "fecha_dato_bcra": "2026-06-07",
+    "spread_riesgo": "0.75x",
+    "inflacion_anual": 65.0,
+    "riesgo_pais_puntos": 1850,
+    "ajuste_dti": 0.75,
+    "ajuste_score_crediticio": -5,
+    "ajuste_pagos_atrasados": 0
+  }
+}
+```
+</details>

@@ -979,7 +979,7 @@ elif page == "🤖 Comparar Sistemas":
 # PÁGINA: ACERCA DE
 elif page == "ℹ️ Acerca de":
     
-    st.markdown("# 🏦 CreditRisk Analyzer Pro")
+    st.markdown("# 🏦 CreditRisk Analyzer")
     st.markdown("*Sistema Experto de Análisis de Crédito y Riesgo Financiero*")
     st.divider()
     
