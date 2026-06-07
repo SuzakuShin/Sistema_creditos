@@ -122,12 +122,6 @@
   <td>Externo</td>
   <td>Perfiles con datos demográficos y fotos</td>
 </tr>
-<tr>
-  <td><code>credit_risk_dataset.csv</code></td>
-  <td align="center">32,581</td>
-  <td>Kaggle</td>
-  <td>Target real: <code>loan_status</code> (pagó/no pagó)</td>
-</tr>
 </table>
 
 ---

@@ -129,7 +129,6 @@ def evaluar_cliente(ingreso_anual: float, deuda_pendiente: float,
             fundamentacion_tasa = resultado_tasa["fundamentacion"]
         except Exception as e:
             print(f"⚠️ Error obteniendo tasa BCRA: {e}")
-            # Fallback a tasas fijas
             tasas_fallback = {"Riesgo Bajo": 65.0, "Riesgo Medio": 100.0}
             tasa = tasas_fallback.get(riesgo, 0.0)
 
