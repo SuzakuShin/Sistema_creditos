@@ -27,9 +27,9 @@
     <td align="center"><b>Miriam Velazque</b></td>
   </tr>
   <tr>
-    <td align="center">Desarrollo Backend<br>Agente Experto</td>
-    <td align="center">Machine Learning<br>Data Engineering</td>
-    <td align="center">Frontend<br>Dashboard</td>
+    <td align="center">Desarrollo Backend<br>Machine Learning</td>
+    <td align="center">Frontend<br>Data Engineering</td>
+    <td align="center">Agente Experto<br>Dashboard</td>
   </tr>
 </table>
 
