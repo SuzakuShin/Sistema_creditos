@@ -79,7 +79,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Sistema Experto de Scoring Crediticio",
     description="API para evaluar riesgo crediticio mediante un agente de decisión.",
-    version="1.0.0",
+    version="2.3.5",
     lifespan=lifespan
 )
 
@@ -122,11 +122,7 @@ def obtener_perfil_completo(cliente_id: str):
     
     if cliente_credito is None or cliente_credito.empty:
         raise HTTPException(status_code=404, detail=f"Cliente '{cliente_id}' no encontrado en datos crediticios")
-    
-    # Tomar el primer registro
     datos_credito = cliente_credito.iloc[0]
-    
-    # Obtener pagos atrasados de forma segura
     pagos_atrasados = 0
     if 'Num_of_Delayed_Payment' in datos_credito.index:
         try:
@@ -141,7 +137,6 @@ def obtener_perfil_completo(cliente_id: str):
         except (ValueError, TypeError):
             pagos_atrasados = 0
     
-    # Obtener valores de forma segura
     try:
         ingreso_anual = float(datos_credito['Annual_Income'])
     except (ValueError, TypeError):
@@ -154,9 +149,6 @@ def obtener_perfil_completo(cliente_id: str):
     
     credit_score_str = str(datos_credito.get('Credit_Score', 'Standard'))
     
-    # ============================================
-    # EVALUACIÓN DEL AGENTE EXPERTO
-    # ============================================
     try:
         decision_agente = evaluar_cliente(
             ingreso_anual=ingreso_anual,
@@ -166,10 +158,7 @@ def obtener_perfil_completo(cliente_id: str):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al evaluar cliente con agente experto: {str(e)}")
-    
-    # ============================================
-    # EVALUACIÓN DEL MODELO ML
-    # ============================================
+    #  MODELO ML
     decision_ml = None
     
     try:
@@ -196,15 +185,13 @@ def obtener_perfil_completo(cliente_id: str):
         if ml_prediction is not None:
             risk_labels = {0: "Riesgo Bajo", 1: "Riesgo Medio", 2: "Riesgo Alto"}
             
-            # Obtener confianza de la predicción
-            confianza = 85.0  # Default
+            confianza = 85.0  
             try:
                 features = ml._prepare_features(ml_data)
                 if hasattr(ml.model, 'predict_proba'):
                     proba = ml.model.predict_proba(features)
                     confianza = float(proba.max() * 100)
-            except Exception:
-                # Si no se puede obtener probabilidad, usar valor default
+            except Exception:               
                 pass
             
             decision_ml = {
@@ -218,9 +205,6 @@ def obtener_perfil_completo(cliente_id: str):
     except Exception as e:
         print(f"⚠️ Error en evaluación ML: {e}")
     
-    # ============================================
-    # CONSTRUIR RESPUESTA COMPLETA
-    # ============================================
     response = {
         "Customer_ID": cliente_id,
         "datos_crediticios": {
@@ -239,13 +223,9 @@ def obtener_perfil_completo(cliente_id: str):
         )
     }
     
-    # ============================================
-    # AGREGAR DATOS PERSONALES SI EXISTEN
-    # ============================================
     if df_personal is not None and not df_personal.empty:
         cliente_personal = None
         
-        # Probar diferentes nombres de columna para el ID
         for col in ['person_id', 'Person_ID', 'Customer_ID', 'ID']:
             if col in df_personal.columns:
                 cliente_personal = df_personal[df_personal[col] == cliente_id]
@@ -256,7 +236,6 @@ def obtener_perfil_completo(cliente_id: str):
             datos_personales = cliente_personal.iloc[0]
             response["datos_personales"] = {}
             
-            # Mapeo de campos de forma segura
             campos_map = {
                 'firstname': ['firstname', 'FirstName', 'first_name', 'nombre'],
                 'lastname': ['lastname', 'LastName', 'last_name', 'apellido'],
@@ -280,7 +259,6 @@ def obtener_perfil_completo(cliente_id: str):
                         break
                 
                 if value is not None and pd.notna(value):
-                    # Convertir a tipos nativos de Python
                     if isinstance(value, (np.integer,)):
                         value = int(value)
                     elif isinstance(value, (np.floating,)):

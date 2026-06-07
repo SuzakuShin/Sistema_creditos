@@ -1,4 +1,4 @@
-# 🏦 CreditRisk Analyzer Pro v2.3
+#  CreditRisk Analyzer Pro v2.3
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.12-blue?style=for-the-badge&logo=python" alt="Python">
@@ -37,7 +37,7 @@
 
 ---
 
-## 📌 Descripción del Proyecto
+## 📌  Descripción del Proyecto
 
 <table>
 <tr>
@@ -52,19 +52,7 @@
 
 </td>
 <td width="30%" align="center">
-.._ .._
-| | | |
-| ... |..........| ... |
-| ||| | o CREDITRISK o | ||| |
-| """ | """ """ """ | """ |
-()) |[-|-]| [-|-] [-|-] [-|-] |[-|-]| ())
-(())) | |---------------------| | (()))
-(())())| """ | """ """ """ | """ |(())())
-(()))()|[-|-]| ::: .-"-. ::: |[-|-]|(()))()
-()))(()| | |~|~| ||| |~|~| | |()))(()
-|| |_____||||||||||_|_____| ||
-
-text
+<img src="https://politecnico.ar/campus/pluginfile.php/1/core_admin/logocompact/300x300/1774350287/user.jpg" alt="Python">
 
 </td>
 </tr>
@@ -172,14 +160,14 @@ text
 
 <pre style="background: #0f172a; color: #e2e8f0; padding: 20px; border-radius: 10px;">
 ┌──────────────────────────────────────────────────────────────┐
-│                  <span style="color: #f59e0b;">FRONTEND (Streamlit :8501)</span>                    │
+│                  <span style="color: #f59e0b;">FRONTEND Streamlit :8501)</span>                   |
 │  Búsqueda Clientes │ Evaluación │ Dashboard │ Comparación    │
 └──────────────────────────┬───────────────────────────────────┘
                            │ <span style="color: #3b82f6;">REST API (JSON)</span>
 ┌──────────────────────────┴───────────────────────────────────┐
 │                  <span style="color: #10b981;">BACKEND (FastAPI :8000)</span>                       │
-│  ┌────────────────────┐  ┌──────────────────────────────┐   │
-│  │ <span style="color: #f59e0b;">🧠 AGENTE EXPERTO</span>  │  │ <span style="color: #8b5cf6;">🤖 MACHINE LEARNING</span>        │   │
+│  ┌────────────────────┐  ┌──────────────────────────────┐  
+│  │ <span style="color: #f59e0b;">🧠 AGENTE EXPERTO</span> │   │ <span style="color: #8b5cf6;">🤖 MACHINE LEARNING</span>        │   │
 │  │ Scorecard 0-100pts  │  │ Random Forest 150 árboles    │   │
 │  │ Reglas + Hard Rules │  │ ROC AUC: 0.91               │   │
 │  └────────────────────┘  └──────────────────────────────┘   │
