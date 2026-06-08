@@ -201,8 +201,8 @@ def clean_data(input_path: str, output_path: str):
 
 if __name__ == "__main__":
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    input_csv = os.path.join(current_dir, "..", "data", "clientes.csv")
-    output_csv = os.path.join(current_dir, "..", "data", "clientes_limpios.csv")
+    input_csv = os.path.join(current_dir, "..", "data", "train.csv")
+    output_csv = os.path.join(current_dir, "..", "data", "train_processed.csv")
     
     # Verificar que el archivo de entrada existe
     if not os.path.exists(input_csv):

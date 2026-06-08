@@ -1,3 +1,8 @@
+"""
+Modelo de Machine Learning para predicción de riesgo crediticio.
+Entrenado con Credit Score Classification (Kaggle).
+Aplica Hard Rules del Agente Experto (>5 atrasos = Rechazo).
+"""
 import pandas as pd
 import numpy as np
 import joblib
@@ -9,6 +14,7 @@ from sklearn.metrics import classification_report, confusion_matrix, roc_auc_sco
 
 
 class CreditRiskModel:
+    """Modelo de Machine Learning para predicción de riesgo crediticio"""
     
     def __init__(self):
         self.model = None
@@ -18,6 +24,7 @@ class CreditRiskModel:
         self._load_model()
     
     def _load_model(self):
+        """Carga el modelo entrenado si existe"""
         try:
             if os.path.exists(self.model_path):
                 data = joblib.load(self.model_path)
@@ -33,8 +40,10 @@ class CreditRiskModel:
             print(f"⚠️ Error al cargar modelo ML: {e}")
     
     def _prepare_features(self, data: dict):
+        """Prepara las features para el modelo"""
         df = pd.DataFrame([data])
         
+        # Codificar Credit_Score
         if 'Credit_Score' in df.columns:
             try:
                 df['credit_score_encoded'] = self.label_encoder.transform(df['Credit_Score'])
@@ -43,17 +52,29 @@ class CreditRiskModel:
                 df['credit_score_encoded'] = df['Credit_Score'].map(score_map).fillna(1)
         else:
             df['credit_score_encoded'] = 1
+        
+        # Codificar Credit_Mix
+        if 'Credit_Mix' in df.columns:
+            mix_map = {'Good': 2, 'Standard': 1, 'Bad': 0}
+            df['credit_mix_encoded'] = df['Credit_Mix'].map(mix_map).fillna(1)
+        else:
+            df['credit_mix_encoded'] = 1
+        
+        # Codificar Payment_of_Min_Amount
+        if 'Payment_of_Min_Amount' in df.columns:
+            pay_map = {'Yes': 1, 'No': 0, 'NM': 0}
+            df['payment_min_encoded'] = df['Payment_of_Min_Amount'].map(pay_map).fillna(0)
+        else:
+            df['payment_min_encoded'] = 0
+        
+        # Asegurar columnas necesarias
         default_values = {
-            'Annual_Income': 0,
-            'Outstanding_Debt': 0,
-            'monthly_income': 0,
-            'debt_to_income': 0,
-            'loan_int_rate': 10,
-            'person_emp_length': 0,
-            'cb_person_cred_hist_length': 0,
-            'credit_score_encoded': 1,
-            'home_ownership_encoded': 0,
-            'default_on_file': 0,
+            'Annual_Income': 0, 'Outstanding_Debt': 0,
+            'monthly_income': 0, 'debt_to_income': 0,
+            'Interest_Rate': 10, 'Num_of_Loan': 1,
+            'Num_Credit_Card': 1, 'Num_Bank_Accounts': 1,
+            'Credit_History_Age': 5, 'credit_score_encoded': 1,
+            'credit_mix_encoded': 1, 'payment_min_encoded': 0,
             'delayed_payments': 0
         }
         
@@ -61,12 +82,16 @@ class CreditRiskModel:
             if col not in df.columns:
                 df[col] = default
         
+        # Usar feature_cols guardadas
         if self.feature_cols:
             cols_to_use = self.feature_cols
         else:
             cols_to_use = [
                 'Annual_Income', 'Outstanding_Debt', 'monthly_income',
-                'debt_to_income', 'credit_score_encoded', 'delayed_payments'
+                'debt_to_income', 'Interest_Rate', 'Num_of_Loan',
+                'credit_score_encoded', 'credit_mix_encoded',
+                'payment_min_encoded', 'delayed_payments',
+                'Credit_History_Age', 'Num_Credit_Card', 'Num_Bank_Accounts'
             ]
         
         for col in cols_to_use:
@@ -76,8 +101,17 @@ class CreditRiskModel:
         return df[cols_to_use]
     
     def predict(self, data: dict):
+        """
+        Predice el nivel de riesgo.
+        APLICA HARD RULE: >5 pagos atrasados = Riesgo Alto automático
+        Retorna: 0 (Bajo), 1 (Medio), 2 (Alto) o None
+        """
+        # HARD RULE del Agente Experto
+        delayed = data.get('delayed_payments', 0)
+        if delayed > 5:
+            return 2  # Riesgo Alto
+        
         if self.model is None:
-            print("⚠️ Modelo no cargado")
             return None
         
         try:
@@ -89,6 +123,11 @@ class CreditRiskModel:
             return None
     
     def predict_proba(self, data: dict):
+        """Devuelve probabilidades de cada clase"""
+        delayed = data.get('delayed_payments', 0)
+        if delayed > 5:
+            return [0.0, 0.0, 1.0]
+        
         if self.model is None:
             return None
         
@@ -100,14 +139,78 @@ class CreditRiskModel:
             print(f"❌ Error en predict_proba: {e}")
             return None
     
+    # ================================================================
+    # ENTRENAMIENTO CON CREDIT SCORE CLASSIFICATION (KAGGLE)
+    # ================================================================
     def train(self, df: pd.DataFrame, force: bool = False):
-        print("=" * 50)
-        print(" ENTRENANDO MODELO DE MACHINE LEARNING (Scorecard)")
-        print("=" * 50)
+        """
+        Entrena el modelo con Credit Score Classification (Kaggle).
+        Aplica la misma lógica del Agente Experto:
+          - Scorecard idéntico para el target
+          - Hard Rule: >5 pagos atrasados = Riesgo Alto
+        """
+        print("=" * 60)
+        print("🔄 ENTRENANDO MODELO ML - Credit Score Classification")
+        print("=" * 60)
         
         df = df.copy()
         
-        print("\n📊 Preparando features...")
+        print(f"\n📊 Datos cargados: {len(df):,} registros")
+        
+        # ============================================================
+        # LIMPIEZA
+        # ============================================================
+        print("\n🧹 Limpiando datos...")
+        initial_rows = len(df)
+        
+        # Eliminar columnas irrelevantes
+        cols_to_drop = ['ID', 'Customer_ID', 'Name', 'SSN', 'Month',
+                       'Occupation', 'Type_of_Loan', 'Changed_Credit_Limit',
+                       'Num_Credit_Inquiries', 'Total_EMI_per_month',
+                       'Amount_invested_monthly', 'Payment_Behaviour',
+                       'Monthly_Balance']
+        for col in cols_to_drop:
+            if col in df.columns:
+                df = df.drop(columns=[col])
+        
+        # Limpiar Credit_Score
+        df['Credit_Score'] = df['Credit_Score'].fillna('Standard')
+        valid_scores = ['Good', 'Standard', 'Poor']
+        df = df[df['Credit_Score'].isin(valid_scores)]
+        
+        # Limpiar pagos atrasados
+        if 'Num_of_Delayed_Payment' in df.columns:
+            df['delayed_payments'] = pd.to_numeric(
+                df['Num_of_Delayed_Payment'].astype(str).str.replace('_', '').str.strip(),
+                errors='coerce'
+            ).fillna(0).clip(lower=0, upper=20).astype(int)
+        elif 'Delay_from_due_date' in df.columns:
+            df['delayed_payments'] = pd.to_numeric(
+                df['Delay_from_due_date'].astype(str).str.replace('_', '').str.strip(),
+                errors='coerce'
+            ).fillna(0).clip(lower=0, upper=20).astype(int)
+        else:
+            df['delayed_payments'] = 0
+        
+        # Limpiar valores numéricos
+        for col in ['Annual_Income', 'Outstanding_Debt', 'Interest_Rate',
+                   'Num_of_Loan', 'Num_Credit_Card', 'Num_Bank_Accounts',
+                   'Credit_History_Age', 'Monthly_Inhand_Salary']:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).clip(lower=0)
+        
+        # Eliminar outliers extremos
+        df = df[df['Annual_Income'] < df['Annual_Income'].quantile(0.99)]
+        df = df[df['Outstanding_Debt'] < df['Outstanding_Debt'].quantile(0.99)]
+        
+        print(f"   Registros después de limpieza: {len(df):,}")
+        print(f"   Pagos atrasados - Max: {df['delayed_payments'].max()}, Media: {df['delayed_payments'].mean():.1f}")
+        
+        # ============================================================
+        # FEATURE ENGINEERING
+        # ============================================================
+        print("\n📊 Creando features...")
+        
         df['monthly_income'] = df['Annual_Income'] / 12.0
         df['debt_to_income'] = np.where(
             df['Annual_Income'] > 0,
@@ -115,233 +218,190 @@ class CreditRiskModel:
             1.0
         )
         
-        print("🔧 Procesando pagos atrasados...")
-        if 'Num_of_Delayed_Payment' in df.columns:
-            df['delayed_payments'] = pd.to_numeric(
-                df['Num_of_Delayed_Payment'].astype(str).str.replace('_', '').str.strip(),
-                errors='coerce'
-            )
-        elif 'Delay_from_due_date' in df.columns:
-            df['delayed_payments'] = pd.to_numeric(
-                df['Delay_from_due_date'].astype(str).str.replace('_', '').str.strip(),
-                errors='coerce'
-            )
-        else:
-            df['delayed_payments'] = 0
-        
-        df['delayed_payments'] = df['delayed_payments'].fillna(0).clip(lower=0, upper=20)
-        print(f"   Pagos atrasados - Min: {df['delayed_payments'].min():.0f}, "
-              f"Max: {df['delayed_payments'].max():.0f}, "
-              f"Media: {df['delayed_payments'].mean():.1f}")
-        
-        df['Credit_Score'] = df['Credit_Score'].fillna('Standard')
-        valid_scores = ['Good', 'Standard', 'Poor']
-        df = df[df['Credit_Score'].isin(valid_scores)]
-        
+        # Codificar variables categóricas
         print("🏷️ Codificando variables...")
+        
         self.label_encoder = LabelEncoder()
         self.label_encoder.fit(['Poor', 'Standard', 'Good'])
         df['credit_score_encoded'] = self.label_encoder.transform(df['Credit_Score'])
         
-        print("🎯 Creando variable target (scorecard multicriterio)...")
-        dti_max = df['debt_to_income'].max()
-        df['score_dti'] = (1 - df['debt_to_income'] / dti_max) * 30
-        score_map_puntos = {'Good': 40, 'Standard': 25, 'Poor': 5}
-        df['score_credit'] = df['Credit_Score'].map(score_map_puntos)
-        df['score_pagos'] = (1 - df['delayed_payments'] / 20) * 30
-        df['puntaje_total'] = df['score_dti'] + df['score_credit'] + df['score_pagos']
+        if 'Credit_Mix' in df.columns:
+            mix_map = {'Good': 2, 'Standard': 1, 'Bad': 0}
+            df['credit_mix_encoded'] = df['Credit_Mix'].map(mix_map).fillna(1).astype(int)
+        else:
+            df['credit_mix_encoded'] = 1
         
-        def classify(puntaje):
-            if puntaje >= 65:
-                return 0
-            elif puntaje >= 35:
-                return 1
+        if 'Payment_of_Min_Amount' in df.columns:
+            pay_map = {'Yes': 1, 'No': 0, 'NM': 0}
+            df['payment_min_encoded'] = df['Payment_of_Min_Amount'].map(pay_map).fillna(0).astype(int)
+        else:
+            df['payment_min_encoded'] = 0
+        
+        # ============================================================
+        # TARGET: Misma lógica que el Agente Experto
+        # ============================================================
+        print("\n🎯 Creando target (scorecard del Agente Experto)...")
+        
+        def assign_risk(row):
+            delayed = row.get('delayed_payments', 0)
+            
+            # HARD RULE: >5 atrasos = RECHAZO AUTOMÁTICO
+            if delayed > 5:
+                return 2  # Alto
+            
+            dti = row['debt_to_income']
+            score = row['Credit_Score']
+            
+            puntaje = 0
+            
+            # DTI (25 pts) - idéntico al agente
+            if dti < 0.10:
+                puntaje += 25
+            elif dti < 0.20:
+                puntaje += 18
+            elif dti < 0.30:
+                puntaje += 10
+            elif dti < 0.40:
+                puntaje += 4
+            
+            # Credit Score (35 pts) - idéntico al agente
+            if score == 'Good':
+                puntaje += 35
+            elif score == 'Standard':
+                puntaje += 18
+            
+            # Pagos Atrasados (40 pts) - idéntico al agente
+            if delayed == 0:
+                puntaje += 40
+            elif delayed == 1:
+                puntaje += 25
+            elif delayed == 2:
+                puntaje += 12
+            elif delayed <= 5:
+                puntaje += 3
+            
+            # Clasificación - idéntica al agente
+            if puntaje >= 75:
+                return 0  # Bajo
+            elif puntaje >= 45:
+                return 1  # Medio
             else:
-                return 2
+                return 2  # Alto
         
-        df['risk_level'] = df['puntaje_total'].apply(classify)
+        df['risk_level'] = df.apply(assign_risk, axis=1)
         
         print("\n📊 Distribución de riesgo (target):")
         dist = df['risk_level'].value_counts().sort_index()
         for level, count in dist.items():
             labels = {0: 'Bajo', 1: 'Medio', 2: 'Alto'}
-            print(f"   {labels[level]}: {count} ({count/len(df)*100:.1f}%)")
+            pct = count/len(df)*100
+            print(f"   {labels[level]}: {count:,} ({pct:.1f}%)")
         
+        # ============================================================
+        # FEATURES FINALES
+        # ============================================================
         self.feature_cols = [
             'Annual_Income', 'Outstanding_Debt', 'monthly_income',
-            'debt_to_income', 'credit_score_encoded', 'delayed_payments'
+            'debt_to_income', 'Interest_Rate', 'Num_of_Loan',
+            'Num_Credit_Card', 'Num_Bank_Accounts',
+            'Credit_History_Age', 'credit_score_encoded',
+            'credit_mix_encoded', 'payment_min_encoded',
+            'delayed_payments'
         ]
         
         X = df[self.feature_cols].fillna(0)
         y = df['risk_level']
         
+        # ============================================================
+        # CORRELACIONES
+        # ============================================================
+        print("\n📊 Correlación features vs target:")
+        for col in self.feature_cols:
+            if col in df.columns:
+                corr = df[col].corr(df['risk_level'])
+                print(f"   {col:<30s}: {corr:+.4f}")
+        
+        # ============================================================
+        # TRAIN/TEST SPLIT
+        # ============================================================
         print("\n🔄 Dividiendo datos (80% train / 20% test)...")
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=42, stratify=y
         )
-        
         print(f"   Train: {len(X_train):,} | Test: {len(X_test):,}")
         
-        print("\n Entrenando Random Forest...")
+        # ============================================================
+        # ENTRENAR
+        # ============================================================
+        print("\n🌲 Entrenando Random Forest...")
         self.model = RandomForestClassifier(
-            n_estimators=100, max_depth=10, min_samples_split=10,
-            min_samples_leaf=5, random_state=42, n_jobs=-1, class_weight='balanced'
+            n_estimators=150,
+            max_depth=12,
+            min_samples_split=20,
+            min_samples_leaf=10,
+            random_state=42,
+            n_jobs=-1,
+            class_weight='balanced'
         )
         self.model.fit(X_train, y_train)
         
-        train_acc = self.model.score(X_train, y_train)
-        test_acc = self.model.score(X_test, y_test)
-        
-        print(f"\n📈 Fidelidad al scorecard (Train): {train_acc:.2%}")
-        print(f"   Fidelidad al scorecard (Test):  {test_acc:.2%}")
-        print(f"\n💾 Guardando modelo...")
-        os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
-        joblib.dump((self.model, self.label_encoder, self.feature_cols), self.model_path)
-        print(f"✅ Modelo guardado en: {self.model_path}")
-        
-        return test_acc
-
-    def train_with_real_target(self, df: pd.DataFrame, force: bool = False):
-        print("=" * 50)
-        print(" ENTRENANDO MODELO ML - Credit Risk Dataset")
-        print("=" * 50)
-        
-        df = df.copy()
-        
-        required_cols = ['person_income', 'loan_amnt', 'loan_int_rate',
-                         'loan_status', 'person_age', 'loan_percent_income',
-                         'cb_person_cred_hist_length', 'person_emp_length']
-        
-        missing = [c for c in required_cols if c not in df.columns]
-        if missing:
-            raise ValueError(f"Faltan columnas: {missing}")
-        
-        print(f"\n📊 Datos cargados: {len(df):,} registros")
-        
-        print("\n🧹 Limpiando datos...")
-        initial_rows = len(df)
-        df = df.dropna(subset=['loan_status', 'person_income', 'loan_amnt'])
-        df = df[df['person_age'].between(18, 100)]
-        df = df[df['person_emp_length'].between(0, 60)]
-        income_99 = df['person_income'].quantile(0.99)
-        df = df[df['person_income'] <= income_99]
-        print(f"   Registros eliminados: {initial_rows - len(df):,}")
-        print(f"   Registros finales: {len(df):,}")
-        
-        print("\n📊 Creando features...")
-        df['Annual_Income'] = df['person_income']
-        df['Outstanding_Debt'] = df['loan_amnt']
-        df['monthly_income'] = df['person_income'] / 12.0
-        df['debt_to_income'] = df['loan_percent_income'] / 100.0
-        
-        np.random.seed(42)
-        df['delayed_payments'] = np.where(
-            df['cb_person_default_on_file'] == 'Y',
-            np.random.randint(3, 10, len(df)),
-            np.random.randint(0, 2, len(df))
-        )
-        
-        grade_to_score = {
-            'A': 'Good', 'B': 'Good', 'C': 'Standard',
-            'D': 'Standard', 'E': 'Poor', 'F': 'Poor', 'G': 'Poor'
-        }
-        df['Credit_Score'] = df['loan_grade'].map(grade_to_score).fillna('Standard')
-        
-        df['person_emp_length'] = df['person_emp_length'].fillna(0)
-        df['cb_person_cred_hist_length'] = df['cb_person_cred_hist_length'].fillna(0)
-        
-        print("\n📊 Estadísticas del target (loan_status):")
-        target_counts = df['loan_status'].value_counts().sort_index()
-        for val, count in target_counts.items():
-            label = 'Pagó ✅' if val == 0 else 'No Pagó ❌'
-            print(f"   {label}: {count:,} ({count/len(df)*100:.1f}%)")
-        
-        print("\n🏷️ Codificando variables...")
-        self.label_encoder = LabelEncoder()
-        self.label_encoder.fit(['Poor', 'Standard', 'Good'])
-        df['credit_score_encoded'] = self.label_encoder.transform(df['Credit_Score'])
-        
-        df['home_ownership_encoded'] = df['person_home_ownership'].map({
-            'OWN': 3, 'MORTGAGE': 2, 'RENT': 1, 'OTHER': 0
-        }).fillna(0)
-        
-        df['default_on_file'] = np.where(df['cb_person_default_on_file'] == 'Y', 1, 0)
-        
-        self.feature_cols = [
-            'Annual_Income', 'Outstanding_Debt', 'monthly_income',
-            'debt_to_income', 'loan_int_rate', 'person_emp_length',
-            'cb_person_cred_hist_length', 'credit_score_encoded',
-            'home_ownership_encoded', 'default_on_file', 'delayed_payments'
-        ]
-        
-        X = df[self.feature_cols].fillna(0)
-        y = df['loan_status']
-        
-        print("\n Dividiendo datos (80% train / 20% test)...")
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
-        )
-        print(f"   Train: {len(X_train):,} | Test: {len(X_test):,}")
-        
-        print("\n Entrenando Random Forest...")
-        self.model = RandomForestClassifier(
-            n_estimators=150, max_depth=12, min_samples_split=20,
-            min_samples_leaf=10, random_state=42, n_jobs=-1, class_weight='balanced'
-        )
-        self.model.fit(X_train, y_train)
-        
+        # ============================================================
+        # EVALUAR
+        # ============================================================
         print("\n📈 Evaluando modelo...")
         train_acc = self.model.score(X_train, y_train)
         test_acc = self.model.score(X_test, y_test)
         y_pred = self.model.predict(X_test)
-        y_proba = self.model.predict_proba(X_test)[:, 1]
-        auc = roc_auc_score(y_test, y_proba)
         
         print(f"   Accuracy Train: {train_acc:.2%}")
         print(f"   Accuracy Test:  {test_acc:.2%}")
-        print(f"   ROC AUC:        {auc:.4f}")
         
         print("\n📋 Reporte de clasificación (Test):")
-        print(classification_report(y_test, y_pred, target_names=['Pagó ✅', 'No Pagó ❌']))
+        print(classification_report(y_test, y_pred,
+                                    target_names=['Bajo', 'Medio', 'Alto']))
+        
+        # ============================================================
+        # FEATURE IMPORTANCE
+        # ============================================================
         print("\n📊 Importancia de features:")
         importances = self.model.feature_importances_
-        feature_importance = sorted(zip(self.feature_cols, importances), key=lambda x: x[1], reverse=True)
+        feature_importance = sorted(zip(self.feature_cols, importances),
+                                   key=lambda x: x[1], reverse=True)
+        
         for col, imp in feature_importance:
             bar = "█" * int(imp * 50)
             print(f"   {col:<30s}: {imp*100:5.1f}% {bar}")
         
+        # ============================================================
+        # GUARDAR
+        # ============================================================
         print(f"\n💾 Guardando modelo...")
         os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
         joblib.dump((self.model, self.label_encoder, self.feature_cols), self.model_path)
         print(f"✅ Modelo guardado en: {self.model_path}")
         
-        print("\n" + "=" * 50)
-        print(f"🎯 ENTRENAMIENTO COMPLETADO")
-        print(f"   Accuracy: {test_acc:.2%}")
-        print(f"   ROC AUC:  {auc:.4f}")
-        print("=" * 50)
+        print("\n" + "=" * 60)
+        print(f"🎯 ENTRENAMIENTO COMPLETADO - Accuracy: {test_acc:.2%}")
+        print("=" * 60)
         
         return test_acc
 
 
+# ============================================================
+# SCRIPT DE ENTRENAMIENTO
+# ============================================================
 if __name__ == "__main__":
     print("\n🚀 INICIANDO ENTRENAMIENTO DEL MODELO ML\n")
     
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    kaggle_path = os.path.join(current_dir, '..', 'data', 'credit_risk_dataset.csv')
-    original_path = os.path.join(current_dir, '..', 'data', 'clientes_limpios.csv')
+    train_path = os.path.join(current_dir, '..', 'data', 'train.csv')
     
-    if os.path.exists(kaggle_path):
-        print(f"📂 Dataset Kaggle encontrado: {kaggle_path}")
-        df = pd.read_csv(kaggle_path, low_memory=False)
-        model = CreditRiskModel()
-        model.train_with_real_target(df)
-    elif os.path.exists(original_path):
-        print(f"📂 Dataset original encontrado: {original_path}")
-        df = pd.read_csv(original_path, low_memory=False)
+    if os.path.exists(train_path):
+        print(f"📂 Dataset Kaggle encontrado: {train_path}")
+        df = pd.read_csv(train_path, low_memory=False)
         model = CreditRiskModel()
         model.train(df, force=True)
     else:
-        print("❌ No se encontraron datasets para entrenar.")
-        print(f"   Kaggle: {kaggle_path}")
-        print(f"   Original: {original_path}")
+        print(f"❌ No se encontró el dataset: {train_path}")
+        print("   Descargalo de: https://www.kaggle.com/datasets/parisrohan/credit-score-classification")
+        print("   Guardalo como: data/train.csv")

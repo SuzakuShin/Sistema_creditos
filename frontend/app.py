@@ -945,11 +945,11 @@ elif page == "🤖 Comparar Sistemas":
             <p style="text-align: left;">
             ✅ <b>Aprende de 100,000 registros</b><br>
             ✅ <b>Detecta patrones complejos</b><br>
-            ✅ <b>Random Forest (100 árboles)</b><br>
+            ✅ <b>Random Forest (150 árboles)</b><br>
             ✅ <b>Accuracy: ~79%</b>
             </p>
             <hr style="border-color: #334155;">
-            <p style="color: #94a3b8; font-size: 13px;">5 features | 100 estimadores | Datos reales</p>
+            <p style="color: #94a3b8; font-size: 13px;">5 features | 150 estimadores | Datos reales</p>
         </div>
         """, unsafe_allow_html=True)
     
